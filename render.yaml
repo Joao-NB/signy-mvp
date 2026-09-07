@@ -1,0 +1,23 @@
+# Use esta pasta como raiz do repositório no Render.
+# Sem disco pago: dados persistem no PostgreSQL externo (Neon Free).
+services:
+  - type: web
+    name: signy-mvp
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
