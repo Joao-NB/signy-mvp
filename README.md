@@ -27,6 +27,8 @@ Não inicie duas instâncias usando a mesma pasta de dados. Para encerrar, press
 
 ## Funcionalidades entregues
 
+O refinamento de interface impede formulários sem pré-requisitos, mostra somente alunos elegíveis para novas matrículas e presenças, evita presença duplicada já na seleção e orienta o próximo cadastro necessário. Todas as ações visíveis possuem tratamento e foram percorridas no navegador.
+
 | Requisitos | Implementação |
 | --- | --- |
 | RF01–RF04 | Cadastro, edição, busca por nome/CPF/situação e exclusão protegida de alunos |
