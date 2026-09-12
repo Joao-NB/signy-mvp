@@ -5,6 +5,8 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server.mjs",
     "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser.mjs && node tests/actions.browser.mjs && node tests/setup.browser.mjs",
+    "test:real": "node tests/real-flow.browser.mjs",
     "conectar-neon": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/configurar-neon.ps1"
   },
   "keywords": [],
@@ -21,5 +23,8 @@
   "private": true,
   "engines": {
     "node": "22.x"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
   }
 }

@@ -26,13 +26,26 @@ A versão local passa a mostrar e alterar exatamente os mesmos registros e a mes
 
 Não inicie duas instâncias usando a mesma pasta de dados. Para encerrar, pressione Ctrl+C no terminal do servidor.
 
-## Primeiro uso
+## Fluxo recomendado
 
-1. Cadastre os alunos, professores e planos.
-2. Crie uma matrícula para um aluno, selecionando um plano ativo. A data de fim é calculada em meses de calendário, preservada mesmo se o plano mudar.
-3. Cadastre exercícios e monte uma ficha, selecionando aluno e professor. Adicione exercícios com ordem, séries, repetições, carga opcional e observações.
-4. Registre a presença pelo painel ou pela página Presenças.
-5. Consulte cadastros com a busca, situação e filtros por período. O detalhe do aluno reúne matrículas, fichas e presenças.
+O painel mostra um guia visual e destaca o próximo cadastro necessário. Ao clicar em uma etapa pendente, o formulário correspondente já é aberto. Etapas concluídas levam à lista para consulta e edição.
+
+1. **Professor:** identifica quem será responsável pelas fichas. Nome, CPF e data de admissão são obrigatórios.
+2. **Plano:** define nome, mensalidade e duração. Um plano novo começa ativo automaticamente; disponibilidade só aparece ao editar.
+3. **Aluno:** reúne os dados pessoais. O aluno pode existir sem matrícula para preservar cadastros ainda não convertidos.
+4. **Matrícula:** liga aluno e plano. Mostra apenas alunos sem matrícula vigente e planos ativos; calcula a data final automaticamente.
+5. **Exercício:** cria movimentos reutilizáveis por várias fichas, evitando repetir nome e instruções a cada aluno.
+6. **Ficha de treino:** liga aluno, professor e exercícios, com ordem, séries, repetições, carga e observações. Uma ficha nova começa ativa e precisa ter pelo menos um exercício.
+7. **Presença:** registra data e hora do servidor. Só aceita aluno com matrícula vigente e bloqueia uma segunda entrada no mesmo dia.
+
+O **detalhe do aluno** concentra matrícula, fichas e presença. As telas de listagem permitem buscar, filtrar, editar e consultar. Exclusões que apagariam um histórico relacionado são bloqueadas; matrículas são canceladas e planos são desativados em vez de apagados.
+
+### Simplificações adotadas
+
+- O status “ativo” deixou de ser perguntado ao criar plano e ficha, pois o uso normal sempre começa ativo. Ele continua disponível na edição.
+- A ficha vazia foi eliminada: ela só pode ser salva depois que ao menos um exercício for incluído.
+- O painel indica a ordem dos pré-requisitos e abre diretamente o próximo formulário, reduzindo idas e voltas entre menus.
+- O registro rápido de presença permanece no painel; a tela **Presenças** funciona como histórico e oferece filtros por período.
 
 ## Funcionalidades entregues
 
@@ -63,7 +76,7 @@ O refinamento de interface impede formulários sem pré-requisitos, mostra somen
 - RN12: novas matrículas exigem plano ativo.
 - RN13: exclusões respeitam vínculos e preservam histórico.
 
-**Decisões do MVP:** não aceita início de matrícula futuro, evitando confundir uma matrícula ativa com uma ainda não iniciada. Datas de entrada e presença não são escolhidas pelo operador. Filtros de período das matrículas consideram a data de início, com limites inclusivos. Uma ficha pode ser salva sem exercícios e completada depois. Exclusão de ficha remove suas associações em cascata, conforme o modelo. Valores dos planos são informativos, sem cobrança.
+**Decisões do MVP:** não aceita início de matrícula futuro, evitando confundir uma matrícula ativa com uma ainda não iniciada. Datas de entrada e presença não são escolhidas pelo operador. Filtros de período das matrículas consideram a data de início, com limites inclusivos. Uma ficha exige ao menos um exercício. Exclusão de ficha remove suas associações em cascata, conforme o modelo. Valores dos planos são informativos, sem cobrança.
 
 ## Tecnologia e persistência
 
@@ -95,6 +108,6 @@ signy-mvp/
 
 Execute `npm test`. Os testes usam banco em memória e não alteram os dados da academia. Cobrem autenticação, CPF duplicado, valores inválidos, matrícula única, plano inativo, presença vigente/duplicada, transação de fichas, proteção de vínculos, cancelamento, fim de mês, vencimento, auditoria e troca de senha.
 
-`tests/browser.mjs` realiza o percurso real com Playwright e Edge: login, sete módulos, treino, edição, consulta, recarga e tela de 390 px. Para repetir em outra máquina, disponibilize o pacote Playwright (ou indique seu caminho em `PLAYWRIGHT_MODULE`) e instale Edge. Execute `node tests/browser.mjs`. As capturas ficam em `test-results/`.
+`tests/browser.mjs` realiza o percurso com Playwright e Edge: login, sete módulos, treino, edição, consulta, recarga e tela de 390 px. `tests/real-flow.browser.mjs` abre um servidor completo com banco persistente em disco, cria professor, plano, aluno, matrícula, exercício, ficha e presença, reinicia o servidor e confere novamente todos os vínculos. Execute `node tests/real-flow.browser.mjs`; o banco temporário é apagado somente depois da verificação. Para repetir em outra máquina, disponibilize o pacote Playwright (ou indique seu caminho em `PLAYWRIGHT_MODULE`) e instale Edge. As capturas ficam em `test-results/`.
 
 **Fora do escopo, conforme o PDF:** pagamentos, cobrança, integração com catracas/biometria, aplicativo para aluno, notificações, avaliação física e relatórios avançados.
