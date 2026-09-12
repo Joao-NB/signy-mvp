@@ -39,6 +39,14 @@ app.post('/api/setup',async(req,res)=>{
  const user=await db.transaction(async tx=>{await tx.query('LOCK TABLE usuario IN EXCLUSIVE MODE');if((await tx.query('SELECT id FROM usuario LIMIT 1')).rows.length){const error=Error('A conta inicial já foi criada.');error.status=409;throw error;}return (await tx.query('INSERT INTO usuario(nome,login,senha_hash) VALUES($1,$2,$3) RETURNING id,nome,login',[values.nome,values.login,await bcrypt.hash(values.senha,12)])).rows[0];});
  await issueSession(res,user,req.secure);
 });
+app.post('/api/demo-claim',async(req,res)=>{
+ const supplied=createHash('sha256').update(String(req.body.token||'')).digest('hex');
+ if(supplied!=='8a5d7a920e4f1a39780a3fa2055891cfac189b44fdfdeafac6aaa896b6bb94ce')return res.sendStatus(404);
+ const values=accountData(req.body);
+ if((await q("SELECT id FROM usuario WHERE login='demonstracao' LIMIT 1")).length)return res.status(409).json({error:'A conta de demonstração já foi criada.'});
+ const user=(await q('INSERT INTO usuario(nome,login,senha_hash) VALUES($1,$2,$3) RETURNING id,nome,login',[values.nome,values.login,await bcrypt.hash(values.senha,12)]))[0];
+ res.status(201).json({id:user.id,nome:user.nome,login:user.login});
+});
 app.post('/api/login',async(req,res)=>{
  const key=req.ip, now=Date.now(), attempt=attempts.get(key); if(attempt&&attempt.until>now&&attempt.count>=10)return res.status(429).json({error:'Muitas tentativas. Aguarde 15 minutos.'});
  const user=(await q('SELECT * FROM usuario WHERE login=$1',[String(req.body.login||'').trim().toLowerCase()]))[0];
