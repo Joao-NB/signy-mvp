@@ -26,6 +26,12 @@ A versão local passa a mostrar e alterar exatamente os mesmos registros e a mes
 
 Não inicie duas instâncias usando a mesma pasta de dados. Para encerrar, pressione Ctrl+C no terminal do servidor.
 
+### Criar uma demonstração local
+
+Execute `npm run demo:local` com o servidor parado. O comando usa a interface real em um navegador automatizado para criar professor, plano, aluno, matrícula, exercício, ficha e presença no banco local `data/`. Ele ignora `DATABASE_URL` deliberadamente, portanto nunca envia os exemplos ao Neon. Depois, abra a aplicação e entre com o usuário `demonstracao` e a senha `DemoSigny123!`.
+
+Cada execução cria um conjunto com identificador próprio. A conta de demonstração é separada da conta administrativa existente.
+
 ## Fluxo recomendado
 
 O painel mostra um guia visual e destaca o próximo cadastro necessário. Ao clicar em uma etapa pendente, o formulário correspondente já é aberto. Etapas concluídas levam à lista para consulta e edição.
