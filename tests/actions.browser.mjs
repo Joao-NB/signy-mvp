@@ -184,11 +184,11 @@ try {
   await page.locator('[name=atual]').fill('BotoesTeste123!');
   await page.locator('[name=nova]').fill('SenhaRefinada123!');
   await page.locator('[name=confirmacao]').fill('diferente123');
-  await page.getByRole('button', { name: 'Salvar senha' }).click();
+  await page.getByRole('button', { name: 'Salvar conta' }).click();
   await page.getByText('A confirmação não corresponde à nova senha.').waitFor();
   await page.locator('[name=confirmacao]').fill('SenhaRefinada123!');
-  await page.getByRole('button', { name: 'Salvar senha' }).click();
-  await page.getByText('Senha alterada.').waitFor();
+  await page.getByRole('button', { name: 'Salvar conta' }).click();
+  await page.getByText('Conta atualizada.').waitFor();
 
   for (const section of ['home', 'aluno', 'professor', 'plano', 'matricula', 'ficha_treino', 'exercicio', 'presenca']) await nav(section);
 

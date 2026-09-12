@@ -4,7 +4,8 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node --env-file-if-exists=.env server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "conectar-neon": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/configurar-neon.ps1"
   },
   "keywords": [],
   "author": "",

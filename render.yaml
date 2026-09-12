@@ -19,5 +19,3 @@ services:
         value: "1"
       - key: DATABASE_URL
         sync: false
-      - key: ADMIN_PASSWORD
-        sync: false

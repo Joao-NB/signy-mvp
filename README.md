@@ -11,9 +11,18 @@ Requisito: Node.js 22 ou superior, com npm.
 1. Abra um terminal nesta pasta e execute `npm install` (as dependências já estão instaladas nesta entrega).
 2. Execute `npm start` ou abra **Iniciar Signy.cmd**.
 3. Acesse http://localhost:3000.
-4. Usuário inicial: **admin**. Na primeira execução, uma senha aleatória é exibida no terminal. Ela não fica armazenada em texto puro no banco.
+4. Se o banco estiver vazio, a página exibe **Primeiro acesso** para criar o nome, o usuário e a senha administrativos. A senha não fica armazenada em texto puro.
 
-Para definir a senha antes da primeira execução, copie `.env.example` para `.env`, altere `ADMIN_PASSWORD` e inicie a aplicação. Alterar essa variável depois que o usuário já existe não troca sua senha. Depois de entrar, use o ícone de configurações ao lado do administrador para trocar a senha.
+Depois de entrar, use o ícone de configurações ao lado do administrador para alterar nome, usuário ou senha. As credenciais ficam na tabela `usuario` do banco e sobrevivem aos reinícios. `ADMIN_PASSWORD` permanece disponível apenas como opção de automação para inicializar um banco vazio; não é necessária no uso normal e não altera uma conta que já existe.
+
+### Usar o mesmo Neon localmente e na produção
+
+1. Execute **Conectar ao Neon.cmd**.
+2. Cole a mesma `DATABASE_URL` configurada no Render. A digitação fica oculta no terminal.
+3. O assistente valida o endereço e salva `signy-mvp/.env`, que está excluído do GitHub.
+4. Execute **Iniciar Signy.cmd** e acesse http://localhost:3000.
+
+A versão local passa a mostrar e alterar exatamente os mesmos registros e a mesma conta da produção. Criar, editar ou excluir localmente produz efeito no Neon e aparece na aplicação do Render. Para voltar ao banco local, mova ou renomeie o arquivo `.env` antes de iniciar.
 
 Não inicie duas instâncias usando a mesma pasta de dados. Para encerrar, pressione Ctrl+C no terminal do servidor.
 
@@ -38,7 +47,7 @@ O refinamento de interface impede formulários sem pré-requisitos, mostra somen
 | RF14–RF16 | Catálogo de exercícios com edição e filtros por nome/grupo; exclusão protegida |
 | RF17–RF20 | Fichas por aluno e professor, exercícios parametrizados, edição, consulta e ativação/inativação |
 | RF21–RF22 | Presença diária com data/hora do servidor e histórico por aluno/período |
-| RNF01–RNF03 | Login, bcrypt custo 12, sessões expirando em 8 horas, datas de criação/alteração por trigger |
+| RNF01–RNF03 | Primeiro acesso, login e gestão da conta; bcrypt custo 12; sessões expirando em 8 horas; datas de criação/alteração por trigger |
 | RNF04–RNF10 | Interface em português, mensagens de erro, layout adaptável, índices, constraints, código separado entre servidor/interface/banco/testes |
 | RNF11 | Operação local enquanto o processo do servidor estiver em execução |
 
@@ -78,6 +87,7 @@ signy-mvp/
   tests/              Testes de integração e navegador
   data/               Banco persistente local (gerado na execução)
   .env.example        Configuração opcional
+  Conectar ao Neon.cmd Configurador seguro da conexão compartilhada
   Iniciar Signy.cmd   Inicializador para Windows
 ```
 
