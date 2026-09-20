@@ -44,11 +44,25 @@ test('cadastro autenticado protege senhas e permite login após reabrir o banco'
   assert.equal((await request('/me','GET',null,admin.cookie)).body.login,'gestor');
   const stored=(await db.query('SELECT senha_hash FROM usuario WHERE login=$1',[account.login])).rows[0];
   assert.match(stored.senha_hash,/^\$2[aby]\$12\$/);
+  const publicAccount={nome:'Nova pessoa',login:'nova.pessoa',senha:'NovaPessoa123!',confirmacao:'NovaPessoa123!'};
+  assert.equal((await request('/register','POST',{...publicAccount,confirmacao:'diferente'})).status,400);
+  const registration=await request('/register','POST',{...publicAccount,aprovado:true});
+  assert.equal(registration.status,201);
+  assert.deepEqual(registration.body,{pending:true});
+  assert.equal(registration.cookie,undefined);
+  assert.equal((await request('/register','POST',publicAccount)).status,400);
+  assert.equal((await request('/login','POST',publicAccount)).status,403);
+  const pending=(await request('/users','GET',null,admin.cookie)).body.find(row=>row.login===publicAccount.login);
+  assert.equal(pending.aprovado,false);
+  assert.equal((await request(`/users/${pending.id}/approve`,'POST')).status,401);
   await stop();
   await start('reopened');
   const login=await request('/login','POST',{login:account.login,senha:account.senha});
   assert.equal(login.status,200);
   assert.equal(login.body.nome,account.nome);
+  assert.equal((await request('/login','POST',publicAccount)).status,403);
+  assert.equal((await request(`/users/${pending.id}/approve`,'POST',null,login.cookie)).status,200);
+  assert.equal((await request('/login','POST',publicAccount)).status,200);
   assert.equal((await request('/setup-status')).body.required,false);
  }finally{
   if(server)await new Promise(resolve=>server.close(resolve));

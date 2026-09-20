@@ -15,7 +15,7 @@ Requisito: Node.js 22 ou superior, com npm.
 
 Depois de entrar, use o ícone de configurações ao lado do administrador para alterar nome, usuário ou senha. As credenciais ficam na tabela `usuario` do banco e sobrevivem aos reinícios. `ADMIN_PASSWORD` permanece disponível apenas como opção de automação para inicializar um banco vazio; não é necessária no uso normal e não altera uma conta que já existe.
 
-Para cadastrar outras contas, entre na aplicação e abra **Usuários → Novo usuário**. Informe nome, login, senha e confirmação. Todas as contas têm acesso administrativo neste MVP. Os registros são salvos na tabela `usuario` do banco configurado (Neon com `DATABASE_URL`, ou PGlite local), com senha protegida por bcrypt, e permanecem após reiniciar a aplicação. Não há cadastro público de contas adicionais.
+Na tela de login, selecione **Criar conta**. O cadastro público tem duas etapas: dados pessoais e senha com confirmação. A conta fica aguardando aprovação; um administrador entra em **Usuários → Aprovar acesso** para liberar o primeiro login. As contas aprovadas têm acesso administrativo neste MVP. Também é possível criar uma conta já aprovada em **Usuários → Novo usuário**. Os registros são salvos na tabela `usuario` do banco configurado (Neon com `DATABASE_URL`, ou PGlite local), com senha protegida por bcrypt, e permanecem após reiniciar a aplicação. As contas existentes continuam aprovadas.
 
 ### Usar o mesmo Neon localmente e na produção
 
