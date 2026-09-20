@@ -8,6 +8,7 @@
     "test:browser": "node tests/browser.mjs && node tests/actions.browser.mjs && node tests/setup.browser.mjs && node tests/register.browser.mjs",
     "test:real": "node tests/real-flow.browser.mjs",
     "demo:local": "node scripts/criar-demonstracao-local.mjs",
+    "marca:gerar": "node scripts/gerar-marca.mjs",
     "conectar-neon": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/configurar-neon.ps1"
   },
   "keywords": [],
