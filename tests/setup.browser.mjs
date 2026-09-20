@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { mkdir } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -41,6 +42,33 @@ try {
   await page.locator('[name=senha]').fill('SenhaInicial123!');
   await page.getByRole('button', { name: /Entrar na academia/ }).click();
   await page.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor();
+  await page.getByRole('button', { name: 'Usuários', exact: true }).click();
+  await page.getByRole('button', { name: 'Novo usuário', exact: true }).click();
+  await mkdir('test-results', { recursive: true });
+  await page.screenshot({ path: 'test-results/users-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'test-results/users-mobile.png', fullPage: true });
+  assert.ok(await page.locator('#modal').evaluate(el=>el.scrollWidth<=el.clientWidth));
+  await page.locator('#new-user-form [name=nome]').fill('Recepção Signy');
+  await page.locator('#new-user-form [name=login]').fill('recepcao');
+  await page.locator('#new-user-form [name=senha]').fill('Recepcao123!');
+  await page.locator('#new-user-form [name=confirmacao]').fill('Diferente123!');
+  await page.getByRole('button', { name: 'Cadastrar usuário' }).click();
+  await page.locator('#new-user-form .error').getByText('A confirmação não corresponde à senha.').waitFor();
+  await page.locator('#new-user-form [name=confirmacao]').fill('Recepcao123!');
+  await page.getByRole('button', { name: 'Cadastrar usuário' }).click();
+  await page.getByRole('cell', { name: 'recepcao', exact: true }).waitFor();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({ path: 'test-results/users-list.png', fullPage: true });
+  assert.match(await page.locator('.account').innerText(), /@gestor\.atualizado/);
+  await page.getByRole('button', { name: 'Fechar', exact: true }).last().click();
+  await page.locator('[data-action=logout]').click();
+  await page.locator('[name=login]').fill('recepcao');
+  await page.locator('[name=senha]').fill('Recepcao123!');
+  await page.getByRole('button', { name: /Entrar na academia/ }).click();
+  await page.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor();
+  assert.match(await page.locator('.account').innerText(), /@recepcao/);
+  console.log('Cadastro de usuário e login pela interface OK.');
   console.log('Primeiro acesso e credenciais persistentes pela interface OK.');
 } finally {
   await browser.close();

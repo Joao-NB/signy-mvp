@@ -47,6 +47,12 @@ app.post('/api/login',async(req,res)=>{
 });
 app.use('/api',async(req,res,next)=>{try{const user=(await q('SELECT u.id,u.nome,u.login FROM sessao s JOIN usuario u ON u.id=s.id_usuario WHERE token=$1 AND expira>NOW()',[sessions(req)]))[0];if(!user)return res.status(401).json({error:'Entre na sua conta para continuar.'});req.user=user;next();}catch(e){next(e);}});
 app.get('/api/me',(req,res)=>res.json(req.user));
+app.get('/api/users',async(req,res)=>res.json(await q('SELECT id,nome,login FROM usuario ORDER BY nome,id')));
+app.post('/api/users',async(req,res)=>{
+ const values=accountData(req.body);
+ const created=(await q('INSERT INTO usuario(nome,login,senha_hash) VALUES($1,$2,$3) RETURNING id,nome,login',[values.nome,values.login,await bcrypt.hash(values.senha,12)]))[0];
+ res.status(201).json(created);
+});
 app.post('/api/logout',async(req,res)=>{await q('DELETE FROM sessao WHERE token=$1',[sessions(req)]);res.set('Set-Cookie','signy=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0').json({ok:true});});
 app.post('/api/password',async(req,res)=>{const u=(await q('SELECT * FROM usuario WHERE id=$1',[req.user.id]))[0];if(!await bcrypt.compare(String(req.body.atual||''),u.senha_hash))throw Error('Senha atual incorreta.');if(typeof req.body.nova!=='string'||Buffer.byteLength(req.body.nova)<10||Buffer.byteLength(req.body.nova)>72)throw Error('Use uma senha de 10 a 72 bytes.');await q('UPDATE usuario SET senha_hash=$1 WHERE id=$2',[await bcrypt.hash(req.body.nova,12),u.id]);await q('DELETE FROM sessao WHERE id_usuario=$1 AND token<>$2',[u.id,sessions(req)]);res.json({ok:true});});
 app.put('/api/account',async(req,res)=>{
