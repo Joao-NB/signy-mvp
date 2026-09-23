@@ -11,17 +11,17 @@ Requisito: Node.js 22 ou superior, com npm.
 1. Abra um terminal nesta pasta e execute `npm install` (as dependências já estão instaladas nesta entrega).
 2. Execute `npm start` ou abra **Iniciar Signy.cmd**.
 3. Acesse http://localhost:3000.
-4. Se o banco estiver vazio, a página exibe **Primeiro acesso** para criar o nome, o usuário e a senha administrativos. A senha não fica armazenada em texto puro.
+4. A tela de entrada aceita qualquer nome de usuário e qualquer senha preenchidos. O nome de usuário é registrado no banco para identificar a sessão.
 
-Depois de entrar, use o ícone de configurações ao lado do administrador para alterar nome, usuário ou senha. As credenciais ficam na tabela `usuario` do banco e sobrevivem aos reinícios. `ADMIN_PASSWORD` permanece disponível apenas como opção de automação para inicializar um banco vazio; não é necessária no uso normal e não altera uma conta que já existe.
+O acesso aberto é o padrão, inclusive no Render. Quem souber o endereço pode consultar e alterar os dados após preencher a tela de entrada. Para voltar a exigir contas e senhas cadastradas, configure `OPEN_ACCESS=false`; nesse modo, o fluxo de primeiro acesso e configuração de conta volta a funcionar. `ADMIN_PASSWORD` só inicializa a conta `admin` em banco vazio nesse modo.
 
-A tela de login permite apenas entrar com uma conta existente. Para criar acessos da equipe, um administrador usa **Usuários → Novo usuário**. Contas pendentes criadas anteriormente continuam disponíveis em **Usuários → Aprovar acesso**. As contas e senhas protegidas permanecem salvas no banco após reiniciar a aplicação.
+No acesso aberto, uma conta com o nome informado é criada automaticamente se ainda não existir. A senha digitada não é usada para validar o acesso. Os controles de usuários e senha ficam ocultos na interface enquanto esse modo estiver ativo.
 
 ### Usar o mesmo Neon localmente e na produção
 
 1. Execute **Conectar ao Neon.cmd**.
 2. Cole a mesma `DATABASE_URL` configurada no Render. A digitação fica oculta no terminal.
-3. O assistente valida o endereço e salva `signy-mvp/.env`, que está excluído do GitHub.
+3. O assistente salva `signy-mvp/.env`, que está excluído do GitHub, e testa a conexão com o Neon sem mostrar a senha.
 4. Execute **Iniciar Signy.cmd** e acesse http://localhost:3000.
 
 A versão local passa a mostrar e alterar exatamente os mesmos registros e a mesma conta da produção. Criar, editar ou excluir localmente produz efeito no Neon e aparece na aplicação do Render. Para voltar ao banco local, mova ou renomeie o arquivo `.env` antes de iniciar.
@@ -31,6 +31,8 @@ Não inicie duas instâncias usando a mesma pasta de dados. Para encerrar, press
 ### Criar uma demonstração local
 
 Execute `npm run demo:local` com o servidor parado. O comando usa a interface real em um navegador automatizado para criar professor, plano, aluno, matrícula, exercício, ficha e presença no banco local `data/`. Ele ignora `DATABASE_URL` deliberadamente, portanto nunca envia os exemplos ao Neon. Depois, abra a aplicação e entre com o usuário `demonstracao` e a senha `DemoSigny123!`.
+
+Para simular uma academia no Neon, configure primeiro a conexão completa em `.env` com **Conectar ao Neon.cmd** e execute `npm run demo:neon`. O comando cria a conta `academia.simulada` no banco e usa a interface da aplicação para cadastrar 7 professores, 10 alunos, 3 planos, 10 matrículas, 8 exercícios, 10 fichas de treino e 5 presenças. No acesso aberto, qualquer senha entra nessa conta. Os cadastros usam nomes fictícios e e-mails `example.test`. O comando pode ser repetido com `SIGNY_DEMO_PASSWORD` definido com a senha da conta já criada.
 
 Cada execução cria um conjunto com identificador próprio. A conta de demonstração é separada da conta administrativa existente.
 

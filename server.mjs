@@ -9,7 +9,9 @@ const root=path.dirname(fileURLToPath(import.meta.url));
 export const db=await connectDatabase(root);
 await db.exec(readFileSync(path.join(root,'schema.sql'),'utf8'));
 const q=async(sql,params=[]) => (await db.query(sql,params)).rows;
-if(!(await q('SELECT id FROM usuario LIMIT 1')).length){
+const openAccess=process.env.OPEN_ACCESS!=='false';
+const openAccessHash=openAccess?await bcrypt.hash(randomBytes(32).toString('hex'),12):null;
+if(!openAccess&&!(await q('SELECT id FROM usuario LIMIT 1')).length){
  if(process.env.ADMIN_PASSWORD){
   if(Buffer.byteLength(process.env.ADMIN_PASSWORD)<10||Buffer.byteLength(process.env.ADMIN_PASSWORD)>72)throw Error('ADMIN_PASSWORD deve ter entre 10 e 72 bytes.');
   await q('INSERT INTO usuario(nome,login,senha_hash) VALUES($1,$2,$3)',['Administrador','admin',await bcrypt.hash(process.env.ADMIN_PASSWORD,12)]);
@@ -33,13 +35,19 @@ const accountData=body=>{
  return {nome,login,senha};
 };
 const issueSession=async(res,user,secure)=>{const token=randomBytes(32).toString('hex');await q("DELETE FROM sessao WHERE expira < NOW()");await q("INSERT INTO sessao VALUES($1,$2,NOW()+INTERVAL '8 hours')",[createHash('sha256').update(token).digest('hex'),user.id]);res.set('Set-Cookie',`signy=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${secure?'; Secure':''}`).json({id:user.id,nome:user.nome,login:user.login});};
-app.get('/api/setup-status',async(req,res)=>res.json({required:!(await q('SELECT id FROM usuario LIMIT 1')).length}));
+app.get('/api/setup-status',async(req,res)=>res.json(openAccess?{required:false,open:true}:{required:!(await q('SELECT id FROM usuario LIMIT 1')).length}));
 app.post('/api/setup',async(req,res)=>{
+ if(openAccess)return res.status(404).json({error:'Configuração inicial desnecessária no acesso livre.'});
  const values=accountData(req.body);
  const user=await db.transaction(async tx=>{await tx.query('LOCK TABLE usuario IN EXCLUSIVE MODE');if((await tx.query('SELECT id FROM usuario LIMIT 1')).rows.length){const error=Error('A conta inicial já foi criada.');error.status=409;throw error;}return (await tx.query('INSERT INTO usuario(nome,login,senha_hash) VALUES($1,$2,$3) RETURNING id,nome,login',[values.nome,values.login,await bcrypt.hash(values.senha,12)])).rows[0];});
  await issueSession(res,user,req.secure);
 });
 app.post('/api/login',async(req,res)=>{
+ if(openAccess){
+  const login=String(req.body.login||'visitante').trim().toLowerCase().slice(0,100)||'visitante';
+  const user=(await q('INSERT INTO usuario(nome,login,senha_hash,aprovado) VALUES($1,$2,$3,TRUE) ON CONFLICT(login) DO UPDATE SET aprovado=TRUE RETURNING id,nome,login',[login,login,openAccessHash]))[0];
+  return issueSession(res,user,req.secure);
+ }
  const key=req.ip, now=Date.now(), attempt=attempts.get(key); if(attempt&&attempt.until>now&&attempt.count>=10)return res.status(429).json({error:'Muitas tentativas. Aguarde 15 minutos.'});
  const user=(await q('SELECT * FROM usuario WHERE login=$1',[String(req.body.login||'').trim().toLowerCase()]))[0];
  if(!user||!await bcrypt.compare(String(req.body.senha||''),user.senha_hash)){const a=attempt&&attempt.until>now?attempt:{count:0,until:now+900000};a.count++;attempts.set(key,a);return res.status(401).json({error:'Usuário ou senha incorretos.'});}

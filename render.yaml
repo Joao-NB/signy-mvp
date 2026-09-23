@@ -17,5 +17,7 @@ services:
         value: 0.0.0.0
       - key: TRUST_PROXY_HOPS
         value: "1"
+      - key: OPEN_ACCESS
+        value: "true"
       - key: DATABASE_URL
         sync: false

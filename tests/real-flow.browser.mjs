@@ -23,7 +23,7 @@ const freePort = () => new Promise((resolve, reject) => {
 async function startServer(port) {
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: path.resolve('.'),
-    env: { ...process.env, NODE_ENV: 'development', DATA_DIR: dataDir, PORT: String(port), HOST: '127.0.0.1', ADMIN_PASSWORD: '' },
+    env: { ...process.env, OPEN_ACCESS: 'false', NODE_ENV: 'development', DATA_DIR: dataDir, PORT: String(port), HOST: '127.0.0.1', ADMIN_PASSWORD: '' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let output = '';

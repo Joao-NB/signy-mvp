@@ -7,6 +7,7 @@ import path from 'node:path';
 test('cadastro autenticado protege senhas e permite login após reabrir o banco', async () => {
  const folder=await mkdtemp(path.join(tmpdir(),'signy-users-'));
  process.env.NODE_ENV='test';
+ process.env.OPEN_ACCESS='false';
  process.env.DATA_DIR=folder;
  delete process.env.DATABASE_URL;
  delete process.env.ADMIN_PASSWORD;

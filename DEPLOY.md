@@ -8,7 +8,7 @@ Preparação disponível para Render Free + Neon Free ou serviços Docker com di
 2. No Neon, crie um projeto PostgreSQL e copie a conexão **direta** fornecida em Connect, com `sslmode=require`. O servidor mantém um pool pequeno próprio. Guarde a conexão nos segredos do Render, nunca no repositório.
 3. Coloque esta pasta em um repositório Git da sua conta e conecte ao Render. Use `render.yaml` como Blueprint ou crie um Web Service Node com build `npm ci --omit=dev`, início `npm start` e plano **Free**. Se o repositório incluir a pasta superior, configure a raiz do serviço como `signy-mvp`.
 4. Defina `DATABASE_URL` com a conexão do Neon. As demais variáveis estão no Blueprint. Não defina DATA_DIR neste modo.
-5. Publique e abra imediatamente o endereço HTTPS fornecido pelo Render. Enquanto a tabela de usuários estiver vazia, a página mostrará o primeiro acesso para você criar a conta administrativa. Depois da criação, esse formulário é desativado pelo banco.
+5. Publique e abra o endereço HTTPS fornecido pelo Render. No modo padrão `OPEN_ACCESS=true`, qualquer usuário e senha preenchidos entram, inclusive em banco vazio.
 6. Execute a validação ao final deste guia.
 
 O Render gratuito suspende o serviço após 15 minutos sem tráfego; a retomada costuma levar cerca de um minuto. O banco fica no Neon, separado do disco temporário da aplicação. Há franquias de processamento, armazenamento, tráfego e builds. Para manter custo zero, não habilite upgrade automático ou recursos pagos. Sem forma de pagamento, o Render suspende serviços/builds ao atingir as franquias correspondentes em vez de cobrar excedentes. Se o cadastro exigir cartão por verificação, interrompa essa etapa e revise as condições antes de continuar. Essa opção é voltada ao MVP acadêmico, com pausas e limites de uso, não a disponibilidade contínua garantida.
@@ -29,10 +29,11 @@ A suíte local cobre regras de negócio no PostgreSQL embarcado e o controle de 
 - Disco persistente montado em `/var/lib/signy`, com permissão de escrita para UID 1000 (usuário node).
 - `DATA_DIR=/var/lib/signy/database`.
 - `HOST=0.0.0.0` e `NODE_ENV=production` (já definidos na imagem).
-- `ADMIN_PASSWORD` (opcional): permite automatizar a criação da conta `admin` em um banco vazio. O fluxo recomendado cria a conta pela página, sem essa variável.
+- `ADMIN_PASSWORD` (opcional): só é usada quando `OPEN_ACCESS=false`; permite automatizar a criação da conta `admin` em banco vazio.
+- `OPEN_ACCESS=true`: aceita qualquer usuário e senha na tela de entrada. Para exigir senhas cadastradas, use `false` e configure uma conta inicial.
 - `TRUST_PROXY_HOPS`: configure com a quantidade real de proxies HTTPS confiáveis entre a internet e o processo. Use `1` somente se houver exatamente um proxy e o processo não puder ser acessado diretamente por outra rota. Isso permite reconhecer HTTPS e emitir cookies Secure corretamente.
 
-Não envie `.env`, `data/` ou credenciais no código/imagem. Nome de usuário e senha do Signy ficam na tabela `usuario` do Neon. Alterar `ADMIN_PASSWORD` depois que a conta já existe não muda a senha; use **Configurar conta** dentro da aplicação.
+Não envie `.env`, `data/` ou credenciais no código/imagem. No acesso aberto, qualquer pessoa com o endereço do site pode consultar, alterar ou excluir dados após preencher o login. Alterar `ADMIN_PASSWORD` depois que a conta já existe não muda a senha.
 
 ## Operação
 

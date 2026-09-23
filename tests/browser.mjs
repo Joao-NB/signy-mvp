@@ -3,7 +3,7 @@ import {createRequire} from 'node:module';
 import {mkdir} from 'node:fs/promises';
 const require=createRequire(import.meta.url);
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-process.env.NODE_ENV='test';process.env.DATA_DIR='memory://';process.env.ADMIN_PASSWORD='Navegador123!';
+process.env.NODE_ENV='test';process.env.OPEN_ACCESS='false';process.env.DATA_DIR='memory://';process.env.ADMIN_PASSWORD='Navegador123!';
 delete process.env.DATABASE_URL;
 const {app,db}=await import('../server.mjs');
 const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));

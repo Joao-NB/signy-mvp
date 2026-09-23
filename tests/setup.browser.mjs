@@ -5,6 +5,7 @@ import { mkdir } from 'node:fs/promises';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 process.env.NODE_ENV = 'test';
+process.env.OPEN_ACCESS = 'false';
 process.env.DATA_DIR = 'memory://';
 delete process.env.DATABASE_URL;
 delete process.env.ADMIN_PASSWORD;

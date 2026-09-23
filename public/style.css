@@ -26,3 +26,5 @@
 .brand>*{display:none}
 .login-intro .brand{width:178px;height:48px;background-image:url('/logo-light.svg?v=2');background-size:178px 48px}
 @media(max-width:700px){.auth-page .login-intro{padding:25px}.auth-page .login-intro .brand{margin-bottom:20px}.auth-page .login-intro h1{font-size:29px;letter-spacing:-1px;margin-bottom:0}.auth-benefits,.auth-signature{display:none}.auth-page .login-main{padding:25px}.auth-tabs{margin-bottom:25px}.auth-card h2{font-size:25px}.sidebar .brand{width:145px;height:39px;background-size:145px 39px}}
+.open-access [data-action="users"],
+.open-access [data-action="password"] { display: none; }

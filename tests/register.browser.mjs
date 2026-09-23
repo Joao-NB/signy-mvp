@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 process.env.NODE_ENV='test';
+process.env.OPEN_ACCESS='false';
 process.env.DATA_DIR='memory://';
 delete process.env.DATABASE_URL;
 process.env.ADMIN_PASSWORD='AdminCadastro123!';
