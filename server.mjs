@@ -25,7 +25,6 @@ app.use(express.json({limit:'100kb'}));
 app.use('/api',(req,res,next)=>{if(!['GET','HEAD'].includes(req.method)&&req.headers.origin&&req.headers.origin!==`${req.protocol}://${req.headers.host}`)return res.status(403).json({error:'Origem da requisição não permitida.'});next();});
 const sessions=req=>{const match=(req.headers.cookie||'').match(/(?:^|; )signy=([^;]+)/); return match?createHash('sha256').update(match[1]).digest('hex'):'';};
 const attempts=new Map();
-const registrationAttempts=new Map();
 const accountData=body=>{
  const nome=String(body.nome||'').trim(),login=String(body.login||'').trim().toLowerCase(),senha=String(body.senha||body.nova||'');
  if(nome.length<2||nome.length>150)throw Error('Informe um nome de 2 a 150 caracteres.');
@@ -47,22 +46,7 @@ app.post('/api/login',async(req,res)=>{
  if(!user.aprovado)return res.status(403).json({error:'Sua conta foi criada e aguarda aprovação de um administrador da academia.'});
  attempts.delete(key);await issueSession(res,user,req.secure);
 });
-app.post('/api/register',async(req,res)=>{
- const now=Date.now(),key=req.ip;
- for(const [ip,value]of registrationAttempts)if(value.until<=now)registrationAttempts.delete(ip);
- const attempt=registrationAttempts.get(key)||{count:0,until:now+900000};
- if(attempt.count>=10)return res.status(429).json({error:'Muitas tentativas de cadastro. Aguarde 15 minutos.'});
- attempt.count++;registrationAttempts.set(key,attempt);
- const values=accountData(req.body);
- if(req.body.confirmacao!==values.senha)throw Error('A confirmação não corresponde à senha.');
- const hash=await bcrypt.hash(values.senha,12);
- await db.transaction(async tx=>{
-  await tx.query('LOCK TABLE usuario IN EXCLUSIVE MODE');
-  if(!(await tx.query('SELECT id FROM usuario WHERE aprovado=TRUE LIMIT 1')).rows.length){const error=Error('Conclua o primeiro acesso da academia antes de cadastrar a equipe.');error.status=409;throw error;}
-  await tx.query('INSERT INTO usuario(nome,login,senha_hash,aprovado) VALUES($1,$2,$3,FALSE)',[values.nome,values.login,hash]);
- });
- res.status(201).json({pending:true});
-});
+app.post('/api/register',(req,res)=>res.status(404).json({error:'Cadastro público indisponível.'}));
 app.use('/api',async(req,res,next)=>{try{const user=(await q('SELECT u.id,u.nome,u.login FROM sessao s JOIN usuario u ON u.id=s.id_usuario WHERE token=$1 AND expira>NOW() AND u.aprovado=TRUE',[sessions(req)]))[0];if(!user)return res.status(401).json({error:'Entre na sua conta para continuar.'});req.user=user;next();}catch(e){next(e);}});
 app.get('/api/me',(req,res)=>res.json(req.user));
 app.get('/api/users',async(req,res)=>res.json(await q('SELECT id,nome,login,aprovado FROM usuario ORDER BY aprovado,nome,id')));

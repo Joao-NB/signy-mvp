@@ -45,12 +45,12 @@ test('cadastro autenticado protege senhas e permite login após reabrir o banco'
   const stored=(await db.query('SELECT senha_hash FROM usuario WHERE login=$1',[account.login])).rows[0];
   assert.match(stored.senha_hash,/^\$2[aby]\$12\$/);
   const publicAccount={nome:'Nova pessoa',login:'nova.pessoa',senha:'NovaPessoa123!',confirmacao:'NovaPessoa123!'};
-  assert.equal((await request('/register','POST',{...publicAccount,confirmacao:'diferente'})).status,400);
-  const registration=await request('/register','POST',{...publicAccount,aprovado:true});
-  assert.equal(registration.status,201);
-  assert.deepEqual(registration.body,{pending:true});
-  assert.equal(registration.cookie,undefined);
-  assert.equal((await request('/register','POST',publicAccount)).status,400);
+  assert.equal((await request('/register','POST',publicAccount)).status,404);
+  assert.equal((await request('/register','POST',publicAccount,admin.cookie)).status,404);
+  assert.equal((await db.query('SELECT id FROM usuario WHERE login=$1',[publicAccount.login])).rows.length,0);
+  // Simula uma conta pendente já existente antes da retirada do cadastro público.
+  await db.query('INSERT INTO usuario(nome,login,senha_hash,aprovado) SELECT $1,$2,senha_hash,FALSE FROM usuario WHERE login=$3',[publicAccount.nome,publicAccount.login,account.login]);
+  publicAccount.senha=account.senha;
   assert.equal((await request('/login','POST',publicAccount)).status,403);
   const pending=(await request('/users','GET',null,admin.cookie)).body.find(row=>row.login===publicAccount.login);
   assert.equal(pending.aprovado,false);
