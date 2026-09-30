@@ -30,9 +30,10 @@ try{
  await page.locator('[name=login]').fill('admin');
  await page.locator('[name=senha]').fill('AdminCadastro123!');
  await page.getByRole('button',{name:'Entrar na academia'}).click();
- await page.getByRole('heading',{name:'Tudo pronto para um novo dia.'}).waitFor();
+ await page.getByRole('heading',{name:'A academia, hoje.'}).waitFor();
  await page.reload();
- await page.getByRole('heading',{name:'Tudo pronto para um novo dia.'}).waitFor();
+ await page.getByRole('heading',{name:'A academia, hoje.'}).waitFor();
+ await page.locator('.menu-toggle').click();
  await page.getByRole('button',{name:'Sair',exact:true}).click();
  await page.locator('#login-form').waitFor();
  assert.equal(await page.getByRole('button',{name:'Criar conta',exact:true}).count(),0);

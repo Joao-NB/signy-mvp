@@ -36,6 +36,12 @@ const accountData=body=>{
 };
 const issueSession=async(res,user,secure)=>{const token=randomBytes(32).toString('hex');await q("DELETE FROM sessao WHERE expira < NOW()");await q("INSERT INTO sessao VALUES($1,$2,NOW()+INTERVAL '8 hours')",[createHash('sha256').update(token).digest('hex'),user.id]);res.set('Set-Cookie',`signy=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${secure?'; Secure':''}`).json({id:user.id,nome:user.nome,login:user.login});};
 app.get('/api/setup-status',async(req,res)=>res.json(openAccess?{required:false,open:true}:{required:!(await q('SELECT id FROM usuario LIMIT 1')).length}));
+// Resolve the entry screen in one request; never include password hashes.
+app.get('/api/bootstrap',async(req,res)=>{
+ const user=sessions(req)?(await q('SELECT u.id,u.nome,u.login FROM sessao s JOIN usuario u ON u.id=s.id_usuario WHERE token=$1 AND expira>NOW() AND u.aprovado=TRUE',[sessions(req)]))[0]:null;
+ const required=!openAccess&&!user&&!(await q('SELECT id FROM usuario LIMIT 1')).length;
+ res.json({required,open:openAccess,user:user||null});
+});
 app.post('/api/setup',async(req,res)=>{
  if(openAccess)return res.status(404).json({error:'Configuração inicial desnecessária no acesso livre.'});
  const values=accountData(req.body);
@@ -77,6 +83,23 @@ app.put('/api/account',async(req,res)=>{
  await q('DELETE FROM sessao WHERE id_usuario=$1 AND token<>$2',[updated.id,sessions(req)]);res.json(updated);
 });
 async function expire(tx=db){await tx.query("UPDATE matricula SET situacao='vencida' WHERE situacao='ativa' AND data_fim<CURRENT_DATE");}
+app.get('/api/overview',async(req,res)=>{
+ // One database round trip, bounded histories, no exercise catalogue or workout details.
+ const [result]=await q(`SELECT
+  TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje,
+  (SELECT COUNT(*)::int FROM aluno) AS alunos,
+  (SELECT COUNT(DISTINCT id_aluno)::int FROM matricula WHERE situacao='ativa' AND CURRENT_DATE BETWEEN data_inicio AND data_fim) AS ativos,
+  (SELECT COUNT(*)::int FROM presenca WHERE data_presenca=CURRENT_DATE) AS presencas,
+  (SELECT COUNT(*)::int FROM ficha_treino WHERE ativa) AS fichas,
+  (SELECT COUNT(*)::int FROM professor) AS professores,
+  (SELECT COUNT(*)::int FROM plano WHERE ativo) AS planos,
+  (SELECT COUNT(*)::int FROM exercicio) AS exercicios,
+  (SELECT COUNT(*)::int FROM matricula WHERE situacao='ativa' AND data_fim BETWEEN CURRENT_DATE AND CURRENT_DATE+7) AS vencimentos,
+  COALESCE((SELECT json_agg(w) FROM (SELECT TO_CHAR(d,'YYYY-MM-DD') AS dia, (SELECT COUNT(*)::int FROM presenca WHERE data_presenca=d::date) AS total FROM generate_series(CURRENT_DATE-6,CURRENT_DATE,INTERVAL '1 day') d ORDER BY d) w),'[]') AS semana,
+  COALESCE((SELECT json_agg(a) FROM (SELECT id_aluno,nome FROM aluno WHERE EXISTS(SELECT 1 FROM matricula m WHERE m.id_aluno=aluno.id_aluno AND m.situacao='ativa' AND CURRENT_DATE BETWEEN m.data_inicio AND m.data_fim) AND NOT EXISTS(SELECT 1 FROM presenca p WHERE p.id_aluno=aluno.id_aluno AND p.data_presenca=CURRENT_DATE) ORDER BY nome) a),'[]') AS disponiveis,
+  COALESCE((SELECT json_agg(a) FROM (SELECT a.id_aluno,a.nome,a.data_cadastro,(SELECT p.nome FROM matricula m JOIN plano p USING(id_plano) WHERE m.id_aluno=a.id_aluno AND m.situacao='ativa' AND CURRENT_DATE BETWEEN m.data_inicio AND m.data_fim LIMIT 1) AS plano FROM aluno a ORDER BY a.id_aluno DESC LIMIT 5) a),'[]') AS recentes`);
+ res.json(result);
+});
 app.get('/api/data',async(req,res)=>{await expire();const data={};for(const [table,[pk]]of Object.entries(models))data[table]=await q(`SELECT * FROM ${table} ORDER BY ${pk} DESC`);data.ficha_exercicio=await q('SELECT * FROM ficha_exercicio ORDER BY ordem,id_ficha_exercicio');data.hoje=(await q("SELECT TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje"))[0].hoje;res.json(data);});
 function clean(table,body){const data={};for(const key of models[table].slice(1)){if(body[key]!==undefined)data[key]=typeof body[key]==='string'?body[key].trim()||null:body[key];}if('cpf'in data)data.cpf=String(data.cpf||'').replace(/\D/g,'');if(data.email){data.email=data.email.toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))throw Error('Informe um e-mail válido.');}for(const key of ['nome','descricao','grupo_muscular'])if(key in data&&data[key]===null&&!(key==='descricao'&&['plano','exercicio'].includes(table)))throw Error('Preencha os campos obrigatórios.');return data;}
 async function insert(tx,table,data){const keys=Object.keys(data);return (await tx.query(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map((_,i)=>'$'+(i+1)).join(',')}) RETURNING *`,Object.values(data))).rows[0];}

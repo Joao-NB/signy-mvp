@@ -55,6 +55,7 @@ async function saveForm(page, table, values) {
   await page.locator(`[data-new="${table}"]`).click();
   const form = page.locator('#edit-form');
   await form.waitFor();
+  if(await form.locator('.form-disclosure').count())await form.locator('.form-disclosure summary').click();
   for (const [key, value] of Object.entries(values)) {
     const field = form.locator(`[name="${key}"]`);
     if (await field.evaluate(element => element.tagName === 'SELECT')) await field.selectOption(String(value));
@@ -77,8 +78,8 @@ try {
   await page.locator('[name="senha"]').fill(password);
   await page.locator('[name="confirmacao"]').fill(password);
   await page.getByRole('button', { name: 'Criar conta e entrar' }).click();
-  await page.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor();
-  await page.getByText('Próximo passo: Professor').waitFor();
+  await page.getByRole('heading', { name: 'A academia, hoje.' }).waitFor();
+  await page.getByText('Próximo: Professor').waitFor();
 
   await saveForm(page, 'professor', { nome: 'Professor Teste Real', cpf: '43128697006', especialidade: 'Musculação' });
   await saveForm(page, 'plano', { nome: 'Plano Teste Real', valor_mensal: '99.90', duracao_meses: '3', descricao: 'Registro de validação ponta a ponta' });
@@ -120,8 +121,8 @@ try {
   await reopened.locator('[name="login"]').fill('teste.real');
   await reopened.locator('[name="senha"]').fill(password);
   await reopened.getByRole('button', { name: 'Entrar na academia' }).click();
-  await reopened.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor();
-  await reopened.getByText('Operação completa').waitFor();
+  await reopened.getByRole('heading', { name: 'A academia, hoje.' }).waitFor();
+  assert.equal(await reopened.locator('.workflow').count(),0,'Os primeiros passos desaparecem após a configuração');
   const afterRestart = await reopened.evaluate(() => fetch('/api/data').then(response => response.json()));
   for (const table of ['aluno', 'professor', 'plano', 'matricula', 'exercicio', 'ficha_treino', 'ficha_exercicio', 'presenca']) {
     assert.equal(afterRestart[table].length, 1, `${table} deve persistir após reiniciar`);
@@ -134,5 +135,5 @@ try {
 } finally {
   if (server) await stopServer(server);
   await browser.close();
-  await rm(dataDir, { recursive: true, force: true });
+  if(path.resolve(dataDir).startsWith(path.resolve(tmpdir())+path.sep))await rm(dataDir, { recursive: true, force: true });
 }

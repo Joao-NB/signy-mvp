@@ -12,8 +12,8 @@ const page=await browser.newPage({viewport:{width:1440,height:1050}});const erro
 await mkdir('test-results',{recursive:true});
 try{
  await page.goto(`http://127.0.0.1:${server.address().port}`);
- await page.locator('[name=login]').fill('admin');await page.locator('[name=senha]').fill('Navegador123!');await page.getByRole('button',{name:'Entrar na academia'}).click();await page.getByRole('heading',{name:'Tudo pronto para um novo dia.'}).waitFor();
- async function form(table,values){await page.locator(`[data-nav="${table}"]`).first().click();await page.locator(`[data-new="${table}"]`).click();for(const [key,value]of Object.entries(values)){const field=page.locator(`#edit-form [name="${key}"]`);if(await field.evaluate(e=>e.tagName)==='SELECT')await field.selectOption(value);else await field.fill(value);}return page.locator('#edit-form [type=submit]');}
+ await page.locator('[name=login]').fill('admin');await page.locator('[name=senha]').fill('Navegador123!');await page.getByRole('button',{name:'Entrar na academia'}).click();await page.getByRole('heading',{name:'A academia, hoje.'}).waitFor();
+ async function form(table,values){await page.locator(`[data-nav="${table}"]`).first().click();await page.locator(`[data-new="${table}"]`).click();if(await page.locator('.form-disclosure').count())await page.locator('.form-disclosure summary').click();for(const [key,value]of Object.entries(values)){const field=page.locator(`#edit-form [name="${key}"]`);if(await field.evaluate(e=>e.tagName)==='SELECT')await field.selectOption(value);else await field.fill(value);}return page.locator('#edit-form [type=submit]');}
  async function save(button){await button.click();await page.waitForFunction(()=>!document.querySelector('#modal').open);}
  await save(await form('aluno',{nome:'Ana Oliveira',cpf:'12345678901',email:'ana@example.test',data_nascimento:'1995-02-20',sexo:'F'}));
  await save(await form('professor',{nome:'Lucas Martins',cpf:'23456789012',especialidade:'Musculação'}));
@@ -24,7 +24,7 @@ try{
  await page.locator('[data-detail=ficha_treino]').click();assert.ok((await page.locator('#modal').innerText()).includes('Agachamento livre'));await page.locator('#close-modal').click();
  await save(await form('presenca',{id_aluno:'1'}));
  await page.locator('[data-nav=aluno]').click();await page.locator('[data-edit=aluno]').click();await page.locator('[name=telefone]').fill('81999990000');await save(page.locator('#edit-form [type=submit]'));await page.locator('#search').fill('Ana');assert.equal(await page.locator('tbody tr').count(),1);
- await page.reload();await page.getByRole('heading',{name:'Tudo pronto para um novo dia.'}).waitFor();assert.ok((await page.locator('.stats').innerText()).includes('01'));await page.screenshot({path:'test-results/dashboard-desktop.png',fullPage:true});
+ await page.reload();await page.getByRole('heading',{name:'A academia, hoje.'}).waitFor();assert.ok((await page.locator('.stats').innerText()).includes('01'));await page.screenshot({path:'test-results/dashboard-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/dashboard-mobile.png',fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Sem overflow horizontal no celular');
  assert.deepEqual(errors,[]);console.log('Browser: login, sete cadastros, treino, presença, edição, consulta, recarga e responsividade OK.');
 }finally{await browser.close();await new Promise(r=>server.close(r));await db.close();}

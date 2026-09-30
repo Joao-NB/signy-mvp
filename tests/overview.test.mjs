@@ -1,0 +1,44 @@
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+process.env.NODE_ENV='test';
+process.env.OPEN_ACCESS='false';
+process.env.DATA_DIR='memory://';
+process.env.ADMIN_PASSWORD='OverviewTest123!';
+delete process.env.DATABASE_URL;
+const {app,db}=await import('../server.mjs');
+const server=app.listen(0,'127.0.0.1');
+await new Promise(resolve=>server.once('listening',resolve));
+const base=`http://127.0.0.1:${server.address().port}/api`;
+let cookie='';
+async function request(path,method='GET',body){
+ const response=await fetch(base+path,{method,headers:{Cookie:cookie,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+ return {response,body:await response.json()};
+}
+after(async()=>{await new Promise(resolve=>server.close(resolve));await db.close();});
+test('resumo inicial protege a sessão e calcula dados reais sem carregar históricos',async()=>{
+ const initial=await request('/bootstrap');
+ assert.deepEqual(initial.body,{required:false,open:false,user:null});
+ assert.equal((await request('/overview')).response.status,401);
+ const login=await request('/login','POST',{login:'admin',senha:'OverviewTest123!'});
+ cookie=login.response.headers.get('set-cookie').split(';')[0];
+ const bootstrap=(await request('/bootstrap')).body;
+ assert.deepEqual(Object.keys(bootstrap.user).sort(),['id','login','nome']);
+ const empty=(await request('/overview')).body;
+ assert.equal(empty.ativos,0);assert.equal(empty.semana.length,7);assert.deepEqual(empty.recentes,[]);
+ const student=(await request('/aluno','POST',{nome:'Aluno resumo',cpf:'12345678901',data_nascimento:'1990-01-01'})).body;
+ const plan=(await request('/plano','POST',{nome:'Plano resumo',valor_mensal:100,duracao_meses:1})).body;
+ const enrollment=(await request('/matricula','POST',{id_aluno:student.id_aluno,id_plano:plan.id_plano,data_inicio:empty.hoje})).body;
+ await db.query('UPDATE matricula SET data_fim=CURRENT_DATE+3 WHERE id_matricula=$1',[enrollment.id_matricula]);
+ const active=(await request('/overview')).body;
+ assert.equal(active.ativos,1);assert.equal(active.vencimentos,1);assert.equal(active.disponiveis.length,1);
+ assert.equal(active.recentes[0].plano,'Plano resumo');
+ assert.equal('cpf' in active.recentes[0],false);assert.equal('ficha_exercicio' in active,false);
+ await request('/presenca','POST',{id_aluno:student.id_aluno});
+ const checked=(await request('/overview')).body;
+ assert.equal(checked.presencas,1);assert.equal(checked.semana.at(-1).total,1);assert.equal(checked.disponiveis.length,0);
+ await db.query('UPDATE matricula SET data_inicio=CURRENT_DATE-5,data_fim=CURRENT_DATE-1 WHERE id_matricula=$1',[enrollment.id_matricula]);
+ const expired=(await request('/overview')).body;
+ assert.equal(expired.ativos,0);assert.equal(expired.vencimentos,0);assert.equal(expired.recentes[0].plano,null);
+ await request('/logout','POST');
+ assert.equal((await request('/bootstrap')).body.user,null);assert.equal((await request('/overview')).response.status,401);
+});

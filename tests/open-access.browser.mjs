@@ -22,11 +22,11 @@ try {
   await page.locator('#login-form [name=login]').fill('equipe');
   await page.locator('#login-form [name=senha]').fill('senha que não existe');
   await page.getByRole('button', { name: /Entrar na academia/ }).click();
-  await page.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor();
+  await page.getByRole('heading', { name: 'A academia, hoje.' }).waitFor();
   assert.equal(await page.locator('[data-action=users]').isVisible(), false);
   assert.equal(await page.locator('[data-action=password]').isVisible(), false);
   await page.reload();
-  await page.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor();
+  await page.getByRole('heading', { name: 'A academia, hoje.' }).waitFor();
   console.log('Navegador: qualquer senha entra e a sessão funciona após recarregar.');
 } finally {
   await browser.close();

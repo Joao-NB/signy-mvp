@@ -29,6 +29,7 @@ const startForm = async (table, values = {}) => {
   await nav(table);
   await page.locator(`[data-new="${table}"]`).click();
   await page.locator('#edit-form').waitFor();
+  if(await page.locator('.form-disclosure').count())await page.locator('.form-disclosure summary').click();
   for (const [key, value] of Object.entries(values)) {
     const input = page.locator(`#edit-form [name="${key}"]`);
     if (await input.evaluate(element => element.tagName === 'SELECT')) await input.selectOption(String(value));
@@ -54,7 +55,7 @@ try {
   await page.getByText('Usuário ou senha incorretos.').waitFor();
   await page.locator('[name=senha]').fill('BotoesTeste123!');
   await page.getByRole('button', { name: 'Entrar na academia' }).click();
-  await page.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor();
+  await page.getByRole('heading', { name: 'A academia, hoje.' }).waitFor();
 
   await page.locator('[data-new=presenca]').click();
   await page.getByRole('heading', { name: 'Nenhum aluno disponível' }).waitFor();
@@ -92,9 +93,11 @@ try {
   await save(await startForm('exercicio', { nome: 'Exercício Temporário', grupo_muscular: 'Braços' }));
 
   await nav('plano');
+  await page.locator('.row-more summary').click();
   await page.locator('[data-toggle]').click();
   await confirm();
   assert.match(await page.locator('tbody').innerText(), /Inativo/);
+  await page.locator('.row-more summary').click();
   await page.locator('[data-toggle]').click();
   await confirm();
   assert.match(await page.locator('tbody').innerText(), /Ativo/);
@@ -161,12 +164,14 @@ try {
 
   for (const [section, item] of [['aluno', 'Aluno Temporário'], ['professor', 'Professor Temporário'], ['exercicio', 'Exercício Temporário']]) {
     await nav(section);
+    await row(item).locator('.row-more summary').click();
     await row(item).locator(`[data-delete="${section}"]`).click();
     await confirm();
     assert.equal(await row(item).count(), 0);
   }
 
   await nav('aluno');
+  await row('Ana Principal').locator('.row-more summary').click();
   await row('Ana Principal').locator('[data-delete=aluno]').click();
   await page.locator('#confirm').click();
   await page.getByText(/existem registros vinculados/).waitFor();
@@ -199,7 +204,7 @@ try {
   await page.locator('[name=senha]').fill('SenhaRefinada123!');
   await page.getByRole('button', { name: 'Entrar na academia' }).click();
   try {
-    await page.getByRole('heading', { name: 'Tudo pronto para um novo dia.' }).waitFor({ timeout: 10000 });
+    await page.getByRole('heading', { name: 'A academia, hoje.' }).waitFor({ timeout: 10000 });
   } catch {
     throw new Error(`Novo login falhou após a troca de senha: ${await page.locator('body').innerText()}`);
   }

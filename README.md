@@ -2,6 +2,8 @@
 
 Aplicação web interna baseada no documento `projeto_Signy_relatorio_atual.pdf` (40 páginas). O banco inicial fica vazio, pronto para os cadastros da academia. Os dados usados nos testes são fictícios e isolados em memória.
 
+A identidade visual, os padrões de interação e a proposta de expansão para Financeiro, Área do Aluno e BI estão em [docs/DESIGN.md](docs/DESIGN.md). A tela inicial carrega um resumo da operação; cadastros completos são buscados quando o usuário abre uma área ou ação que precisa deles.
+
 ## Executar
 
 **Hospedagem gratuita:** o projeto agora aceita PostgreSQL externo por `DATABASE_URL`. A configuração `render.yaml` seleciona explicitamente Render Free, usando Neon Free para persistência. Veja [DEPLOY.md](DEPLOY.md). Sem `DATABASE_URL`, a execução local continua usando PGlite. Os cadastros locais não são transferidos automaticamente ao banco remoto.
@@ -38,7 +40,7 @@ Cada execução cria um conjunto com identificador próprio. A conta de demonstr
 
 ## Fluxo recomendado
 
-O painel mostra um guia visual e destaca o próximo cadastro necessário. Ao clicar em uma etapa pendente, o formulário correspondente já é aberto. Etapas concluídas levam à lista para consulta e edição.
+O painel mostra um guia recolhível de primeiros passos quando falta algum cadastro essencial. Ao abrir o guia e clicar em uma etapa pendente, o formulário correspondente já é aberto. Etapas concluídas levam à lista para consulta e edição.
 
 1. **Professor:** identifica quem será responsável pelas fichas. Nome, CPF e data de admissão são obrigatórios.
 2. **Plano:** define nome, mensalidade e duração. Um plano novo começa ativo automaticamente; disponibilidade só aparece ao editar.
