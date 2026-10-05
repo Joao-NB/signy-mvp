@@ -28,7 +28,7 @@ await db.query(
 
 const server = app.listen(0, '127.0.0.1');
 await new Promise(resolve => server.once('listening', resolve));
-const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 
 async function openForm(table) {

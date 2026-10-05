@@ -8,3 +8,5 @@ data/
 Thumbs.db
 *.log
 test-results/
+tmp/
+dist/

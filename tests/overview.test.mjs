@@ -22,7 +22,7 @@ test('resumo inicial protege a sessão e calcula dados reais sem carregar histó
  const login=await request('/login','POST',{login:'admin',senha:'OverviewTest123!'});
  cookie=login.response.headers.get('set-cookie').split(';')[0];
  const bootstrap=(await request('/bootstrap')).body;
- assert.deepEqual(Object.keys(bootstrap.user).sort(),['id','login','nome']);
+ assert.deepEqual(Object.keys(bootstrap.user).sort(),['id','id_aluno','id_professor','login','nome','perfil','permissions']);
  const empty=(await request('/overview')).body;
  assert.equal(empty.ativos,0);assert.equal(empty.semana.length,7);assert.deepEqual(empty.recentes,[]);
  const student=(await request('/aluno','POST',{nome:'Aluno resumo',cpf:'12345678901',data_nascimento:'1990-01-01'})).body;

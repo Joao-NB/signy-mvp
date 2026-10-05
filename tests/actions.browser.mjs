@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -12,7 +13,7 @@ delete process.env.DATABASE_URL;
 const { app, db } = await import('../server.mjs');
 const server = app.listen(0, '127.0.0.1');
 await new Promise(resolve => server.once('listening', resolve));
-const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const pageErrors = [];
 page.on('pageerror', error => pageErrors.push(error.message));
@@ -211,6 +212,11 @@ try {
 
   assert.deepEqual(pageErrors, []);
   console.log('Ações: navegação, pré-requisitos, CRUD, detalhes, filtros, presença, senha e logout OK.');
+} catch(error) {
+  await mkdir('test-results',{recursive:true});
+  await page.screenshot({path:'test-results/actions-failure.png',fullPage:true});
+  console.log(JSON.stringify({pageErrors,modal:await page.locator('#modal').innerText(),invalid:await page.locator('#password-form :invalid').evaluateAll(elements=>elements.map(e=>({name:e.name,message:e.validationMessage})))}));
+  throw error;
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));

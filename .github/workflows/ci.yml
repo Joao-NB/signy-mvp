@@ -1,0 +1,50 @@
+name: Validar e publicar Signy
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: signy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_CHANNEL: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signy-production
+          path: dist/
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-diagnostics
+          path: test-results/
+  deploy:
+    needs: validate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      VALIDATED_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Publicar versão validada
+        if: env.RENDER_DEPLOY_HOOK != ''
+        run: curl --fail --silent --show-error --get --data-urlencode "ref=$VALIDATED_COMMIT" --request POST "$RENDER_DEPLOY_HOOK" --output /dev/null
+      - name: Informar configuração pendente
+        if: env.RENDER_DEPLOY_HOOK == ''
+        run: echo 'Validação concluída. Configure o secret RENDER_DEPLOY_HOOK para ativar a publicação automática.'

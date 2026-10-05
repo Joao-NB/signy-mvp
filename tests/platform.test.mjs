@@ -1,0 +1,61 @@
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {createHmac} from 'node:crypto';
+process.env.NODE_ENV='test';process.env.OPEN_ACCESS='false';process.env.DATA_DIR='memory://';process.env.ADMIN_PASSWORD='Plataforma123!';delete process.env.DATABASE_URL;delete process.env.RESEND_API_KEY;
+const {app,db}=await import('../server.mjs');
+const {financialModule,validWebhook}=await import('../financial.mjs');
+const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+const base=`http://127.0.0.1:${server.address().port}/api`;
+async function req(path,method='GET',body,cookie=''){const res=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Cookie:cookie},...(body?{body:JSON.stringify(body)}:{})});return {status:res.status,body:await res.json(),cookie:res.headers.get('set-cookie')?.split(';')[0],timing:res.headers.get('server-timing')};}
+after(async()=>{await new Promise(r=>server.close(r));await db.close();});
+test('perfis, convite, recuperação, financeiro, recibos, isolamento do aluno e BI',async()=>{
+ const admin=(await req('/login','POST',{login:'admin',senha:'Plataforma123!'})).cookie;
+ const today=(await req('/overview','GET',null,admin)).body.hoje;
+ const student=await req('/aluno','POST',{nome:'Aluno protegido',cpf:'11122233344',data_nascimento:'1995-01-01',email:'aluno@example.test'},admin);
+ assert.equal(student.status,201);assert.equal(student.body.convite.enviado,false);assert.match(student.body.convite.token,/^[a-f0-9]{64}$/);
+ const token=student.body.convite.token;
+ const teacher=(await req('/professor','POST',{nome:'Professor treino',cpf:'22233344455'},admin)).body;
+ const plan=(await req('/plano','POST',{nome:'Trimestral',duracao_meses:3,valor_mensal:120},admin)).body;
+ const exercise=(await req('/exercicio','POST',{nome:'Agachamento',grupo_muscular:'Pernas',video_url:'https://example.test/video'},admin)).body;
+ const sheet=await req('/ficha_treino','POST',{id_aluno:student.body.id_aluno,id_professor:teacher.id_professor,descricao:'Treino A',exercicios:[{id_exercicio:exercise.id_exercicio,ordem:1,series:3,repeticoes:10}]},admin);assert.equal(sheet.status,201);
+ const enrollment=await req('/matricula','POST',{id_aluno:student.body.id_aluno,id_plano:plan.id_plano,data_inicio:today},admin);assert.equal(enrollment.status,201);
+ const bills=await req('/finance','GET',null,admin);assert.equal(bills.status,200);assert.equal(bills.body.total,3);assert.match(bills.timing,/db;dur=/);
+ assert.equal((await req('/finance/generate/'+enrollment.body.id_matricula,'POST',{},admin)).body.count,0);
+ await req('/plano/'+plan.id_plano,'PUT',{valor_mensal:180},admin);assert.ok((await req('/finance','GET',null,admin)).body.rows.every(m=>Number(m.valor)===120));
+ const create=async(login,perfil,extra={})=>{const r=await req('/users','POST',{nome:login,login,senha:'EquipeSenha123!',perfil,...extra},admin);assert.equal(r.status,201);return (await req('/login','POST',{login,senha:'EquipeSenha123!'})).cookie;};
+ const reception=await create('recepcao','recepcionista');const professor=await create('professor','professor',{id_professor:teacher.id_professor});
+ assert.equal((await req('/users','GET',null,reception)).status,403);assert.equal((await req('/users','POST',{nome:'Inválido',login:'invalido',senha:'SenhaSenha123!'},reception)).status,403);
+ assert.equal((await req('/ficha_treino','POST',{},reception)).status,403);assert.equal((await req('/aluno','POST',{},professor)).status,403);assert.equal((await req('/finance','GET',null,professor)).status,403);assert.equal((await req('/reports?from='+today+'&to='+today,'GET',null,reception)).status,403);
+ const professorData=(await req('/data','GET',null,professor)).body;assert.equal('cpf' in professorData.aluno[0],false);
+ assert.equal((await req('/access/complete','POST',{token,senha:'AlunoSenha123!'})).status,200);assert.equal((await req('/access/complete','POST',{token,senha:'OutraSenha123!'})).status,400);
+ const studentLogin=await req('/login','POST',{login:student.body.convite.login,senha:'AlunoSenha123!'});const studentCookie=studentLogin.cookie;assert.equal(studentLogin.body.perfil,'aluno');
+ assert.equal((await req('/data','GET',null,studentCookie)).status,403);assert.equal((await req('/overview','GET',null,studentCookie)).status,403);assert.equal((await req('/presenca','POST',{id_aluno:student.body.id_aluno},studentCookie)).status,403);
+ const own=(await req('/student','GET',null,studentCookie)).body;assert.equal(own.fichas.length,1);assert.equal(own.fichas[0].exercicios[0].video_url,'https://example.test/video');assert.equal(own.mensalidades.length,3);
+ const bill=bills.body.rows[0];assert.equal((await req('/finance/'+bill.id_mensalidade+'/receipt','GET',null,studentCookie)).status,400);
+ assert.equal((await req('/finance/'+bill.id_mensalidade+'/pay','POST',{meio:'dinheiro',comprovante:'Recibo recepção'},studentCookie)).status,403);
+ const parallel=await Promise.all([req('/finance/'+bill.id_mensalidade+'/pay','POST',{meio:'dinheiro',comprovante:'Recibo recepção'},reception),req('/finance/'+bill.id_mensalidade+'/pay','POST',{meio:'dinheiro',comprovante:'Duplicado'},reception)]);assert.deepEqual(parallel.map(r=>r.status).sort(),[200,400]);
+ assert.equal((await req('/finance/'+bill.id_mensalidade+'/receipt','GET',null,studentCookie)).body.numero,`SIGNY-${bill.id_mensalidade}`);
+ const other=(await req('/aluno','POST',{nome:'Outro aluno',cpf:'33344455566',data_nascimento:'1990-01-01'},admin)).body;
+ const otherEnrollment=await req('/matricula','POST',{id_aluno:other.id_aluno,id_plano:plan.id_plano,data_inicio:today},admin);assert.equal(otherEnrollment.status,201);
+ const otherBill=(await req('/finance?q=Outro','GET',null,admin)).body.rows[0];assert.equal((await req('/finance/'+otherBill.id_mensalidade,'GET',null,studentCookie)).status,403);
+ const recovery=await req('/users/'+studentLogin.body.id+'/recovery','POST',{},admin);assert.equal((await req('/access/complete','POST',{token:recovery.body.token,senha:'Recuperada123!'})).status,200);assert.equal((await req('/student','GET',null,studentCookie)).status,401);
+ const expired=await req('/users/'+studentLogin.body.id+'/recovery','POST',{},admin);await db.query("UPDATE token_acesso SET expira=NOW()-INTERVAL '1 minute' WHERE id_usuario=$1",[studentLogin.body.id]);assert.equal((await req('/access/complete','POST',{token:expired.body.token,senha:'NovaSenha123!'})).status,400);
+ assert.equal((await req('/recovery/request','POST',{identificacao:'admin'})).status,503);
+ const report=await req('/reports?from='+today+'&to='+today,'GET',null,admin);assert.equal(report.status,200);assert.equal(report.body.matriculas,2);assert.equal(report.body.permanencia,null);
+ const presence=(await req('/presenca','POST',{id_aluno:student.body.id_aluno},reception)).body;await db.query("UPDATE presenca SET data_presenca=(LOCALTIMESTAMP-INTERVAL '45 minutes')::date,hora_entrada=(LOCALTIMESTAMP-INTERVAL '45 minutes')::time WHERE id_presenca=$1",[presence.id_presenca]);assert.equal((await req('/attendance/'+presence.id_presenca+'/exit','POST',{},reception)).status,200);assert.equal((await req('/attendance/'+presence.id_presenca+'/exit','POST',{},reception)).status,409);const rangeStart=(await db.query("SELECT TO_CHAR(CURRENT_DATE-1,'YYYY-MM-DD') AS dia")).rows[0].dia;const duration=(await req('/reports?from='+rangeStart+'&to='+today,'GET',null,admin)).body;assert.ok(Number(duration.permanencia)>=44);assert.equal(duration.saidas,1);
+ const finance=financialModule(db);const payment={id:123,status:'approved',external_reference:`signy-${otherBill.id_mensalidade}`,transaction_amount:180,currency_id:'BRL',payment_method_id:'pix'};
+ await assert.rejects(()=>finance.reconcile({...payment,transaction_amount:1}),/Valor/);await finance.reconcile(payment);await finance.reconcile(payment);assert.equal((await db.query("SELECT * FROM pagamento WHERE referencia='mp-123'")).rows.length,1);
+ await finance.reconcile({...payment,status:'refunded'});assert.equal((await req('/finance/'+otherBill.id_mensalidade,'GET',null,admin)).body.status,'pendente');
+ const ts=String(Date.now()),id='123',requestId='test-request',secret='webhook-secret';const sig=createHmac('sha256',secret).update(`id:${id};request-id:${requestId};ts:${ts};`).digest('hex');const webhook={query:{'data.id':id},headers:{'x-request-id':requestId,'x-signature':`ts=${ts},v1=${sig}`}};assert.equal(validWebhook(webhook,secret),true);assert.equal(validWebhook(webhook,'wrong'),false);
+ const originalFetch=globalThis.fetch,gatewayBill=bills.body.rows[1];let preferences=0;
+ process.env.MP_ACCESS_TOKEN='test-token';process.env.MP_WEBHOOK_SECRET=secret;process.env.APP_URL='https://signy.example.test';
+ globalThis.fetch=async(url,options)=>{if(String(url).startsWith('https://api.mercadopago.com')){if(String(url).endsWith('/checkout/preferences')){preferences++;const body=JSON.parse(options.body);assert.equal(body.items[0].unit_price,120);assert.equal(body.external_reference,`signy-${gatewayBill.id_mensalidade}`);assert.ok(options.headers['X-Idempotency-Key']);return Response.json({init_point:'https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=test'});}return Response.json({id:456,status:'approved',external_reference:`signy-${gatewayBill.id_mensalidade}`,transaction_amount:120,currency_id:'BRL',payment_method_id:'pix'});}return originalFetch(url,options);};
+ try{
+  assert.equal((await req('/finance/'+gatewayBill.id_mensalidade+'/checkout','POST',{},admin)).status,200);assert.equal((await req('/finance/'+gatewayBill.id_mensalidade+'/checkout','POST',{},admin)).status,200);assert.equal(preferences,1);assert.equal((await req('/finance/'+gatewayBill.id_mensalidade+'/cancel','POST',{motivo:'Não cancelar cobrança no gateway'},admin)).status,400);
+  const t=String(Date.now()),signed=createHmac('sha256',secret).update(`id:456;request-id:test-request;ts:${t};`).digest('hex');
+  for(let i=0;i<2;i++){const result=await originalFetch(base+'/payments/webhook?data.id=456',{method:'POST',headers:{'Content-Type':'application/json','x-request-id':'test-request','x-signature':`ts=${t},v1=${signed}`},body:JSON.stringify({type:'payment',data:{id:'456'}})});assert.equal(result.status,200);}
+  assert.equal((await req('/finance/'+gatewayBill.id_mensalidade,'GET',null,admin)).body.status,'pago');assert.equal((await db.query("SELECT * FROM pagamento WHERE referencia='mp-456'")).rows.length,1);
+ }finally{globalThis.fetch=originalFetch;delete process.env.MP_ACCESS_TOKEN;delete process.env.MP_WEBHOOK_SECRET;delete process.env.APP_URL;}
+ const pendingBill=bills.body.rows[2];assert.equal((await req('/finance/'+pendingBill.id_mensalidade+'/cancel','POST',{motivo:'Cancelamento autorizado'},admin)).status,200);assert.equal((await req('/finance/'+pendingBill.id_mensalidade,'GET',null,admin)).body.status,'cancelado');assert.equal((await req('/finance/'+pendingBill.id_mensalidade+'/pay','POST',{meio:'dinheiro',comprovante:'Inválido'},admin)).status,400);
+ await req('/logout','POST',{},admin);assert.equal((await req('/users','GET',null,admin)).status,401);
+});

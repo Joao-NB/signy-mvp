@@ -21,3 +21,42 @@ EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NO
 EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP',t);
 EXECUTE format('CREATE OR REPLACE TRIGGER auditoria BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION atualizar_auditoria()',t);
 END LOOP; END $$;
+
+ALTER TABLE usuario ADD COLUMN IF NOT EXISTS perfil VARCHAR(20) NOT NULL DEFAULT 'administrador' CHECK(perfil IN ('administrador','recepcionista','professor','aluno'));
+ALTER TABLE usuario ADD COLUMN IF NOT EXISTS email VARCHAR(150);
+ALTER TABLE usuario ADD COLUMN IF NOT EXISTS id_aluno INTEGER REFERENCES aluno(id_aluno);
+ALTER TABLE usuario ADD COLUMN IF NOT EXISTS id_professor INTEGER REFERENCES professor(id_professor);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_aluno ON usuario(id_aluno) WHERE id_aluno IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_email ON usuario(lower(email)) WHERE email IS NOT NULL;
+ALTER TABLE exercicio ADD COLUMN IF NOT EXISTS video_url TEXT;
+ALTER TABLE presenca ADD COLUMN IF NOT EXISTS saida_em TIMESTAMPTZ;
+CREATE TABLE IF NOT EXISTS token_acesso (token_hash TEXT PRIMARY KEY, id_usuario INTEGER NOT NULL REFERENCES usuario(id), finalidade TEXT NOT NULL CHECK(finalidade IN ('convite','recuperacao')), expira TIMESTAMPTZ NOT NULL, usado_em TIMESTAMPTZ);
+CREATE INDEX IF NOT EXISTS idx_sessao_usuario ON sessao(id_usuario);
+CREATE INDEX IF NOT EXISTS idx_sessao_expira ON sessao(expira);
+CREATE INDEX IF NOT EXISTS idx_matricula_vigencia ON matricula(situacao,data_fim,id_aluno);
+CREATE INDEX IF NOT EXISTS idx_ficha_exercicio_ficha ON ficha_exercicio(id_ficha,ordem);
+CREATE TABLE IF NOT EXISTS mensalidade (
+ id_mensalidade SERIAL PRIMARY KEY, id_matricula INTEGER NOT NULL REFERENCES matricula(id_matricula),
+ competencia DATE NOT NULL, vencimento DATE NOT NULL, valor NUMERIC(10,2) NOT NULL CHECK(valor>0),
+ situacao TEXT NOT NULL DEFAULT 'pendente' CHECK(situacao IN ('pendente','pago','cancelado')),
+ pago_em TIMESTAMPTZ, motivo_cancelamento TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(id_matricula,competencia)
+);
+ALTER TABLE matricula ADD COLUMN IF NOT EXISTS valor_contratado NUMERIC(10,2) CHECK(valor_contratado>0);
+ALTER TABLE matricula ADD COLUMN IF NOT EXISTS meses_contratados INTEGER CHECK(meses_contratados>0);
+ALTER TABLE matricula ADD COLUMN IF NOT EXISTS cancelada_em TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_mensalidade_vencimento ON mensalidade(situacao,vencimento);
+CREATE TABLE IF NOT EXISTS pagamento (
+ id_pagamento SERIAL PRIMARY KEY, id_mensalidade INTEGER NOT NULL REFERENCES mensalidade(id_mensalidade),
+ provedor TEXT NOT NULL, referencia TEXT NOT NULL UNIQUE, valor NUMERIC(10,2) NOT NULL CHECK(valor>0),
+ meio TEXT NOT NULL, situacao TEXT NOT NULL CHECK(situacao IN ('pendente','confirmado','rejeitado','estornado','cancelado')),
+ comprovante TEXT, registrado_por INTEGER REFERENCES usuario(id), confirmado_em TIMESTAMPTZ, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pagamento_confirmado ON pagamento(id_mensalidade) WHERE situacao='confirmado';
+CREATE TABLE IF NOT EXISTS checkout (
+ id_mensalidade INTEGER PRIMARY KEY REFERENCES mensalidade(id_mensalidade), chave TEXT NOT NULL UNIQUE,
+ url TEXT, expira TIMESTAMPTZ NOT NULL, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS evento_financeiro (
+ id_evento SERIAL PRIMARY KEY, id_mensalidade INTEGER NOT NULL REFERENCES mensalidade(id_mensalidade),
+ chave TEXT UNIQUE, tipo TEXT NOT NULL, detalhe TEXT NOT NULL, id_usuario INTEGER REFERENCES usuario(id), criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

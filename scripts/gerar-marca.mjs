@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { readFile, writeFile } from 'node:fs/promises';
 
-const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' });
 try {
   await mkdir('test-results', { recursive: true });
   let page = await browser.newPage({ viewport: { width: 192, height: 192 } });
@@ -15,6 +15,10 @@ try {
   iconHeader.writeUInt16LE(1,10);iconHeader.writeUInt16LE(32,12);
   iconHeader.writeUInt32LE(iconPng.length,14);iconHeader.writeUInt32LE(22,18);
   await writeFile(new URL('../public/favicon.ico', import.meta.url),Buffer.concat([iconHeader,iconPng]));
+  await page.setViewportSize({width:512,height:512});
+  await page.goto(new URL('../public/favicon.svg',import.meta.url).href);
+  await page.evaluate(()=>{document.documentElement.setAttribute('width','512');document.documentElement.setAttribute('height','512');});
+  await page.screenshot({path:'public/icon-512.png'});
 
   await page.setViewportSize({ width: 1200, height: 630 });
   await page.goto(new URL('../public/og-image.svg', import.meta.url).href);

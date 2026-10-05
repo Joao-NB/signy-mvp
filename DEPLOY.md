@@ -1,60 +1,81 @@
-# Publicação do Signy
+# Publicação e integrações do Signy
 
-Preparação disponível para Render Free + Neon Free ou serviços Docker com disco persistente. Nenhum deploy é representado por este arquivo.
+O código e o pipeline estão preparados. Nenhum deploy, cobrança ou envio de e-mail real foi executado durante a implementação.
 
-## Opção gratuita escolhida: Render Free + Neon Free
+## Render e PostgreSQL
 
-1. Crie contas gratuitas no Render e no Neon. Mantenha os planos Free; não selecione teste de plano pago, disco pago ou domínio comprado.
-2. No Neon, crie um projeto PostgreSQL e copie a conexão **direta** fornecida em Connect, com `sslmode=require`. O servidor mantém um pool pequeno próprio. Guarde a conexão nos segredos do Render, nunca no repositório.
-3. Coloque esta pasta em um repositório Git da sua conta e conecte ao Render. Use `render.yaml` como Blueprint ou crie um Web Service Node com build `npm ci --omit=dev`, início `npm start` e plano **Free**. Se o repositório incluir a pasta superior, configure a raiz do serviço como `signy-mvp`.
-4. Defina `DATABASE_URL` com a conexão do Neon. As demais variáveis estão no Blueprint. Não defina DATA_DIR neste modo.
-5. Publique e abra o endereço HTTPS fornecido pelo Render. No modo padrão `OPEN_ACCESS=true`, qualquer usuário e senha preenchidos entram, inclusive em banco vazio.
-6. Execute a validação ao final deste guia.
+Use esta pasta como raiz do serviço. O Blueprint `render.yaml` mantém Render Free com PostgreSQL externo por `DATABASE_URL` e define `OPEN_ACCESS=false`. Configure a conexão Neon/PostgreSQL nos segredos do serviço, com TLS conforme o provedor. O banco local continua disponível quando não houver `DATABASE_URL`.
 
-O Render gratuito suspende o serviço após 15 minutos sem tráfego; a retomada costuma levar cerca de um minuto. O banco fica no Neon, separado do disco temporário da aplicação. Há franquias de processamento, armazenamento, tráfego e builds. Para manter custo zero, não habilite upgrade automático ou recursos pagos. Sem forma de pagamento, o Render suspende serviços/builds ao atingir as franquias correspondentes em vez de cobrar excedentes. Se o cadastro exigir cartão por verificação, interrompa essa etapa e revise as condições antes de continuar. Essa opção é voltada ao MVP acadêmico, com pausas e limites de uso, não a disponibilidade contínua garantida.
+O build do serviço é `npm ci --omit=dev`; início `npm start`; saúde `/healthz`. Para Docker, o Dockerfile inclui todos os novos módulos. Banco embarcado exige volume persistente e apenas uma instância; banco externo usa pool próprio. `HOST=0.0.0.0`, `NODE_ENV=production` e `TRUST_PROXY_HOPS=1` correspondem à implantação com um proxy confiável. Ajuste a quantidade de proxies ao ambiente.
 
-O banco gratuito do próprio Render expira em 30 dias; por isso esta configuração usa Neon Free. Não use um banco Render temporário no lugar de DATABASE_URL sem considerar essa expiração.
+O servidor configura o fuso America/Fortaleza. Crie a primeira conta na tela de configuração ou use `ADMIN_PASSWORD` apenas em banco vazio. `OPEN_ACCESS=true` é ignorado em produção.
 
-### Situação da validação
+Antes da atualização, faça backup. As migrações em `schema.sql` preservam cadastros e acrescentam perfis, vínculos, tokens, financeiro, contratos e data de cancelamento. Contas existentes são administrativas por compatibilidade; revise e reduza seus perfis em **Acessos da equipe**. Mensalidades de matrículas antigas só são geradas por ação explícita.
 
-A suíte local cobre regras de negócio no PostgreSQL embarcado e o controle de transações do adaptador externo. A conexão real ao Neon, criação das tabelas e persistência após reinício na hospedagem ainda precisam ser verificadas após conectar as contas. Nenhuma conta paga foi contratada.
+### Migrar contas do acesso aberto
 
-## Configuração do serviço
+Contas criadas por login livre não possuem uma senha conhecida. Para recuperar uma conta administrativa existente, execute o script com acesso ao banco e defina **no ambiente local protegido** `SIGNY_ADMIN_LOGIN` e `SIGNY_ADMIN_PASSWORD` (10 a 72 bytes). Execute:
 
-- Diretório de build: `signy-mvp` se o repositório contiver a pasta superior; `.` se esta pasta for a raiz.
-- Dockerfile: `Dockerfile`.
-- Porta: variável `PORT` do provedor, ou 3000.
-- Health check: `/healthz`.
-- Uma única instância, sem escalonamento horizontal, pois o banco embarcado é exclusivo do processo.
-- Disco persistente montado em `/var/lib/signy`, com permissão de escrita para UID 1000 (usuário node).
-- `DATA_DIR=/var/lib/signy/database`.
-- `HOST=0.0.0.0` e `NODE_ENV=production` (já definidos na imagem).
-- `ADMIN_PASSWORD` (opcional): só é usada quando `OPEN_ACCESS=false`; permite automatizar a criação da conta `admin` em banco vazio.
-- `OPEN_ACCESS=true`: aceita qualquer usuário e senha na tela de entrada. Para exigir senhas cadastradas, use `false` e configure uma conta inicial.
-- `TRUST_PROXY_HOPS`: configure com a quantidade real de proxies HTTPS confiáveis entre a internet e o processo. Use `1` somente se houver exatamente um proxy e o processo não puder ser acessado diretamente por outra rota. Isso permite reconhecer HTTPS e emitir cookies Secure corretamente.
+```powershell
+node --env-file-if-exists=.env scripts/recuperar-admin.mjs
+```
 
-Não envie `.env`, `data/` ou credenciais no código/imagem. No acesso aberto, qualquer pessoa com o endereço do site pode consultar, alterar ou excluir dados após preencher o login. Alterar `ADMIN_PASSWORD` depois que a conta já existe não muda a senha.
+O script altera somente a conta administrativa indicada e invalida suas sessões. Não exibe a senha. Remova as duas variáveis do ambiente após o uso. Não salve valores reais em scripts, histórico compartilhado ou no repositório. O script não foi executado nos dados da academia durante esta implementação.
 
-## Operação
+Depois de entrar, configure os perfis da equipe. Professores precisam do vínculo com um professor cadastrado; alunos recebem convites próprios.
 
-O serviço deve oferecer HTTPS e encaminhar Host e X-Forwarded-Proto corretamente. O banco exige volume persistente: o disco efêmero do contêiner não é suficiente. Ao receber SIGTERM, o servidor deixa de aceitar conexões, conclui as existentes e fecha o banco antes de encerrar. Configure no provedor ao menos 30 segundos para encerramento.
+## E-mail e recuperação
 
-Para backup, pare o processo e copie o volume completo. Antes de atualizar, mantenha uma cópia recuperável do banco. Nunca execute duas versões ao mesmo tempo sobre o mesmo volume.
+Configure no serviço:
 
-## Validação após publicação
+- `APP_URL`: origem pública HTTPS da aplicação.
+- `RESEND_API_KEY`: chave do serviço Resend.
+- `MAIL_FROM`: remetente em domínio verificado, como Signy <acesso@seu-dominio.com>.
 
-1. `/healthz` deve retornar HTTP 200.
-2. Acesso sem autenticação a `/api/data` deve retornar HTTP 401.
-3. Login com a credencial de produção, criação de um cadastro e leitura após reinício.
-4. Cookie de sessão com HttpOnly, SameSite=Strict e Secure na URL HTTPS.
-5. Testar aluno → plano → matrícula → presença e ficha com exercício.
+Cadastre e-mail nas contas da equipe ao criar/editar perfil. O aluno recebe o convite no endereço de seu cadastro. Links de convite duram 24 horas; links de recuperação, 30 minutos. São de uso único. Sem e-mail configurado, o administrador pode gerar um link de recuperação, e a recepção pode gerar um convite no detalhe do aluno. Falhas no envio não revelam contas pelo endpoint público.
 
-## Referências
+A configuração e o envio seguem a [API oficial de e-mails do Resend](https://resend.com/docs/api-reference/emails/send-email). Valide domínio/remetente e envio em sua conta antes de disponibilizar recuperação por e-mail.
 
-- [Discos persistentes no Render](https://render.com/docs/disks): precisam ser associados ao serviço; o plano gratuito não oferece esse armazenamento.
-- [Docker no Render](https://render.com/docs/docker).
-- [Configuração de proxies no Express](https://expressjs.com/en/guide/behind-proxies/).
-- [Limites do Render Free](https://render.com/docs/free).
-- [Planos Neon](https://neon.com/pricing).
+## Mercado Pago: PIX e cartão
 
-O empacotamento não contrata hospedagem. Qualquer plano pago deve ser escolhido antes da criação do serviço.
+Configure:
+
+- `APP_URL`: origem pública HTTPS.
+- `MP_ACCESS_TOKEN`: credencial privada da conta vendedora.
+- `MP_WEBHOOK_SECRET`: segredo de assinatura das notificações.
+- `MP_SANDBOX=true`: habilita o endereço sandbox retornado na criação da preferência; use as credenciais/contas de teste adequadas do provedor.
+
+No painel do Mercado Pago, habilite notificações **payment** para `https://SUA-ORIGEM/api/payments/webhook`. A API cria uma preferência com valor obtido do banco e referência `signy-ID`. O aluno segue para o checkout do provedor, que oferece os meios habilitados na conta, incluindo PIX e cartão. O QR dinâmico é apresentado pelo provedor; dados brutos de cartão não passam pelo Signy.
+
+O webhook valida assinatura HMAC-SHA256, horário e identificador, consulta o pagamento autenticado e confere moeda/valor. Notificações repetidas não duplicam recibos ou pagamentos. O retorno do navegador nunca confirma cobrança. A equipe pode consultar e conciliar um pagamento pelo identificador do Mercado Pago. O cancelamento local é bloqueado se houver checkout criado, exigindo conciliação do provedor antes de modificar a cobrança.
+
+Referências: [criação de preferências](https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/create-payment-preference) e [notificações assinadas](https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications).
+
+A suíte local verifica o contrato do adaptador com respostas controladas e a conciliação idempotente. Ainda é necessária homologação em sandbox com sua conta: pagamento aprovado, pendente, recusado, cancelado e estornado, webhook repetido e divergências. Nenhuma transação real foi feita.
+
+## GitHub Actions e deploy
+
+O workflow `.github/workflows/ci.yml` roda em push para main/master e em pull requests:
+
+1. Instala dependências com `npm ci`.
+2. Valida a sintaxe JavaScript e manifesto.
+3. Testa API e integrações em banco isolado.
+4. Instala Chromium e testa os fluxos no navegador.
+5. Gera e publica como artefato o pacote `dist/`.
+6. Em push, solicita deploy somente depois das etapas anteriores passarem.
+
+Configure o secret de repositório `RENDER_DEPLOY_HOOK` com o hook privado do serviço. O hook é enviado por variável de ambiente e não aparece no log. Sem ele, a validação continua funcionando e o job informa que a publicação precisa ser configurada.
+
+O Blueprint usa `autoDeployTrigger: off` para evitar publicação direta que ignore os testes. Configure também essa opção em um serviço Render já existente. O hook inclui o SHA do commit validado no parâmetro ref e solicita a implantação dessa versão; acompanhe a conclusão e a versão publicada no painel. Se o repositório tiver uma pasta superior, configure a raiz do serviço e o diretório de trabalho do workflow para `signy-mvp`.
+
+Referências: [especificação oficial de Blueprints do Render](https://render.com/docs/blueprint-spec) e [deploy de um commit pelo hook](https://render.com/docs/deploy-hooks).
+
+## Validar depois da publicação
+
+- `/healthz` responde 200 e endpoints protegidos sem sessão respondem 401.
+- Login aceita credenciais cadastradas, respeita perfis e emite cookie HttpOnly/SameSite=Strict/Secure em HTTPS.
+- Logout invalida a sessão; o navegador não mantém APIs/dados pessoais em cache.
+- Cadastros e financeiro persistem após reinício; aluno só consulta seus próprios dados.
+- Convite/recuperação chega por e-mail e não pode ser reutilizado.
+- PIX/cartão em sandbox confirma apenas por conciliação verificada; recibo reflete o valor contratado.
+- Métricas `Server-Timing` e logs opcionais distinguem aplicação, SQL e infraestrutura. Compare acessos com serviço/banco aquecidos e após inatividade, sem atribuir lentidão ao Render sem medição.

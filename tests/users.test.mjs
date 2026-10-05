@@ -34,7 +34,7 @@ test('cadastro autenticado protege senhas e permite login após reabrir o banco'
   assert.equal((await request('/users','POST',{...account,senha:'curta'},admin.cookie)).status,400);
   const created=await request('/users','POST',account,admin.cookie);
   assert.equal(created.status,201);
-  assert.deepEqual(Object.keys(created.body).sort(),['id','login','nome']);
+  assert.deepEqual(Object.keys(created.body).sort(),['id','id_aluno','id_professor','login','nome','perfil','permissions']);
   assert.equal(created.cookie,undefined);
   const duplicate=await request('/users','POST',{...account,login:' RECEPCAO '},admin.cookie);
   assert.equal(duplicate.status,400);
@@ -62,7 +62,9 @@ test('cadastro autenticado protege senhas e permite login após reabrir o banco'
   assert.equal(login.status,200);
   assert.equal(login.body.nome,account.nome);
   assert.equal((await request('/login','POST',publicAccount)).status,403);
-  assert.equal((await request(`/users/${pending.id}/approve`,'POST',null,login.cookie)).status,200);
+  assert.equal((await request(`/users/${pending.id}/approve`,'POST',null,login.cookie)).status,403);
+  const manager=await request('/login','POST',{login:'gestor',senha:'GestorSenha123!'});
+  assert.equal((await request(`/users/${pending.id}/approve`,'POST',null,manager.cookie)).status,200);
   assert.equal((await request('/login','POST',publicAccount)).status,200);
   assert.equal((await request('/setup-status')).body.required,false);
  }finally{

@@ -12,7 +12,7 @@ delete process.env.ADMIN_PASSWORD;
 const { app, db } = await import('../server.mjs');
 const server = app.listen(0, '127.0.0.1');
 await new Promise(resolve => server.once('listening', resolve));
-const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' });
 const page = await browser.newPage();
 
 try {

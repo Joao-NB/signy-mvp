@@ -9,7 +9,7 @@ delete process.env.DATABASE_URL;
 const {app,db}=await import('../server.mjs');
 const server=app.listen(0,'127.0.0.1');
 await new Promise(resolve=>server.once('listening',resolve));
-const browser=await chromium.launch({headless:true,channel:'msedge'});
+const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||'msedge'});
 const page=await browser.newPage({viewport:{width:1365,height:900}});
 const requests=[];
 page.on('request',request=>{if(request.url().includes('/api/'))requests.push(new URL(request.url()).pathname);});

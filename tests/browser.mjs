@@ -7,7 +7,7 @@ process.env.NODE_ENV='test';process.env.OPEN_ACCESS='false';process.env.DATA_DIR
 delete process.env.DATABASE_URL;
 const {app,db}=await import('../server.mjs');
 const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
-const browser=await chromium.launch({headless:true,channel:'msedge'});
+const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||'msedge'});
 const page=await browser.newPage({viewport:{width:1440,height:1050}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await mkdir('test-results',{recursive:true});
 try{

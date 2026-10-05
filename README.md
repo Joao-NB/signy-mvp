@@ -1,125 +1,72 @@
-# Signy — MVP de gestão de academia
+# Signy · Gestão de academias
 
-Aplicação web interna baseada no documento `projeto_Signy_relatorio_atual.pdf` (40 páginas). O banco inicial fica vazio, pronto para os cadastros da academia. Os dados usados nos testes são fictícios e isolados em memória.
-
-A identidade visual, os padrões de interação e a proposta de expansão para Financeiro, Área do Aluno e BI estão em [docs/DESIGN.md](docs/DESIGN.md). A tela inicial carrega um resumo da operação; cadastros completos são buscados quando o usuário abre uma área ou ação que precisa deles.
+Plataforma em português com gestão da academia, financeiro, Área do aluno e indicadores. As melhorias de `Melhorias - signy (1).pdf` foram incorporadas ao projeto. A aplicação utiliza Node.js 22, Express e PostgreSQL (Neon/externo ou PGlite local).
 
 ## Executar
 
-**Hospedagem gratuita:** o projeto agora aceita PostgreSQL externo por `DATABASE_URL`. A configuração `render.yaml` seleciona explicitamente Render Free, usando Neon Free para persistência. Veja [DEPLOY.md](DEPLOY.md). Sem `DATABASE_URL`, a execução local continua usando PGlite. Os cadastros locais não são transferidos automaticamente ao banco remoto.
-
-Requisito: Node.js 22 ou superior, com npm.
-
-1. Abra um terminal nesta pasta e execute `npm install` (as dependências já estão instaladas nesta entrega).
-2. Execute `npm start` ou abra **Iniciar Signy.cmd**.
-3. Acesse http://localhost:3000.
-4. A tela de entrada aceita qualquer nome de usuário e qualquer senha preenchidos. O nome de usuário é registrado no banco para identificar a sessão.
-
-O acesso aberto é o padrão, inclusive no Render. Quem souber o endereço pode consultar e alterar os dados após preencher a tela de entrada. Para voltar a exigir contas e senhas cadastradas, configure `OPEN_ACCESS=false`; nesse modo, o fluxo de primeiro acesso e configuração de conta volta a funcionar. `ADMIN_PASSWORD` só inicializa a conta `admin` em banco vazio nesse modo.
-
-No acesso aberto, uma conta com o nome informado é criada automaticamente se ainda não existir. A senha digitada não é usada para validar o acesso. Os controles de usuários e senha ficam ocultos na interface enquanto esse modo estiver ativo.
-
-### Usar o mesmo Neon localmente e na produção
-
-1. Execute **Conectar ao Neon.cmd**.
-2. Cole a mesma `DATABASE_URL` configurada no Render. A digitação fica oculta no terminal.
-3. O assistente salva `signy-mvp/.env`, que está excluído do GitHub, e testa a conexão com o Neon sem mostrar a senha.
-4. Execute **Iniciar Signy.cmd** e acesse http://localhost:3000.
-
-A versão local passa a mostrar e alterar exatamente os mesmos registros e a mesma conta da produção. Criar, editar ou excluir localmente produz efeito no Neon e aparece na aplicação do Render. Para voltar ao banco local, mova ou renomeie o arquivo `.env` antes de iniciar.
-
-Não inicie duas instâncias usando a mesma pasta de dados. Para encerrar, pressione Ctrl+C no terminal do servidor.
-
-### Criar uma demonstração local
-
-Execute `npm run demo:local` com o servidor parado. O comando usa a interface real em um navegador automatizado para criar professor, plano, aluno, matrícula, exercício, ficha e presença no banco local `data/`. Ele ignora `DATABASE_URL` deliberadamente, portanto nunca envia os exemplos ao Neon. Depois, abra a aplicação e entre com o usuário `demonstracao` e a senha `DemoSigny123!`.
-
-Para simular uma academia no Neon, configure primeiro a conexão completa em `.env` com **Conectar ao Neon.cmd** e execute `npm run demo:neon`. O comando cria a conta `academia.simulada` no banco e usa a interface da aplicação para cadastrar 7 professores, 10 alunos, 3 planos, 10 matrículas, 8 exercícios, 10 fichas de treino e 5 presenças. No acesso aberto, qualquer senha entra nessa conta. Os cadastros usam nomes fictícios e e-mails `example.test`. O comando pode ser repetido com `SIGNY_DEMO_PASSWORD` definido com a senha da conta já criada.
-
-Cada execução cria um conjunto com identificador próprio. A conta de demonstração é separada da conta administrativa existente.
-
-## Fluxo recomendado
-
-O painel mostra um guia recolhível de primeiros passos quando falta algum cadastro essencial. Ao abrir o guia e clicar em uma etapa pendente, o formulário correspondente já é aberto. Etapas concluídas levam à lista para consulta e edição.
-
-1. **Professor:** identifica quem será responsável pelas fichas. Nome, CPF e data de admissão são obrigatórios.
-2. **Plano:** define nome, mensalidade e duração. Um plano novo começa ativo automaticamente; disponibilidade só aparece ao editar.
-3. **Aluno:** reúne os dados pessoais. O aluno pode existir sem matrícula para preservar cadastros ainda não convertidos.
-4. **Matrícula:** liga aluno e plano. Mostra apenas alunos sem matrícula vigente e planos ativos; calcula a data final automaticamente.
-5. **Exercício:** cria movimentos reutilizáveis por várias fichas, evitando repetir nome e instruções a cada aluno.
-6. **Ficha de treino:** liga aluno, professor e exercícios, com ordem, séries, repetições, carga e observações. Uma ficha nova começa ativa e precisa ter pelo menos um exercício.
-7. **Presença:** registra data e hora do servidor. Só aceita aluno com matrícula vigente e bloqueia uma segunda entrada no mesmo dia.
-
-O **detalhe do aluno** concentra matrícula, fichas e presença. As telas de listagem permitem buscar, filtrar, editar e consultar. Exclusões que apagariam um histórico relacionado são bloqueadas; matrículas são canceladas e planos são desativados em vez de apagados.
-
-### Simplificações adotadas
-
-- O status “ativo” deixou de ser perguntado ao criar plano e ficha, pois o uso normal sempre começa ativo. Ele continua disponível na edição.
-- A ficha vazia foi eliminada: ela só pode ser salva depois que ao menos um exercício for incluído.
-- O painel indica a ordem dos pré-requisitos e abre diretamente o próximo formulário, reduzindo idas e voltas entre menus.
-- O registro rápido de presença permanece no painel; a tela **Presenças** funciona como histórico e oferece filtros por período.
-
-## Funcionalidades entregues
-
-O refinamento de interface impede formulários sem pré-requisitos, mostra somente alunos elegíveis para novas matrículas e presenças, evita presença duplicada já na seleção e orienta o próximo cadastro necessário. Todas as ações visíveis possuem tratamento e foram percorridas no navegador.
-
-| Requisitos | Implementação |
-| --- | --- |
-| RF01–RF04 | Cadastro, edição, busca por nome/CPF/situação e exclusão protegida de alunos |
-| RF05–RF07 | Cadastro, edição e consulta de professores; exclusão apenas sem fichas vinculadas |
-| RF08–RF10 | Planos com valor mensal e duração, edição e ativação/desativação sem exclusão |
-| RF11–RF13 | Matrícula, cálculo automático de fim, cancelamento, vencimento e filtros por aluno/situação/período |
-| RF14–RF16 | Catálogo de exercícios com edição e filtros por nome/grupo; exclusão protegida |
-| RF17–RF20 | Fichas por aluno e professor, exercícios parametrizados, edição, consulta e ativação/inativação |
-| RF21–RF22 | Presença diária com data/hora do servidor e histórico por aluno/período |
-| RNF01–RNF03 | Primeiro acesso, login e gestão da conta; bcrypt custo 12; sessões expirando em 8 horas; datas de criação/alteração por trigger |
-| RNF04–RNF10 | Interface em português, mensagens de erro, layout adaptável, índices, constraints, código separado entre servidor/interface/banco/testes |
-| RNF11 | Operação local enquanto o processo do servidor estiver em execução |
-
-## Regras de negócio
-
-- RN01: índice parcial único impede duas matrículas ativas. A aplicação atualiza matrículas expiradas antes das consultas e alterações.
-- RN02/RN04: vínculos obrigatórios por chaves estrangeiras.
-- RN03: presença exige matrícula ativa cujo período inclui a data atual.
-- RN05/RN06: tabela associativa de exercícios; unicidade por ficha e exercício.
-- RN07: somente uma presença por aluno/data, inclusive em requisições repetidas.
-- RN08–RN10: fim posterior ao início; valor e duração positivos.
-- RN11: CPF de 11 dígitos, normalizado sem máscara e único em cada cadastro. Valida formato, não dígitos verificadores.
-- RN12: novas matrículas exigem plano ativo.
-- RN13: exclusões respeitam vínculos e preservam histórico.
-
-**Decisões do MVP:** não aceita início de matrícula futuro, evitando confundir uma matrícula ativa com uma ainda não iniciada. Datas de entrada e presença não são escolhidas pelo operador. Filtros de período das matrículas consideram a data de início, com limites inclusivos. Uma ficha exige ao menos um exercício. Exclusão de ficha remove suas associações em cascata, conforme o modelo. Valores dos planos são informativos, sem cobrança.
-
-## Tecnologia e persistência
-
-- Node.js + Express: servidor e API REST.
-- HTML, CSS e JavaScript: interface sem dependência de serviços externos.
-- **PGlite**: distribuição embarcada do motor PostgreSQL em WebAssembly, executada no servidor com persistência na pasta `data/`. Não é SQLite nem armazenamento do navegador. Evita instalar um serviço PostgreSQL separado para executar o MVP.
-- `schema.sql`: DDL PostgreSQL com as oito entidades do PDF, tabelas de infraestrutura `usuario`/`sessao`, índices e auditoria. Utiliza triggers `CREATE OR REPLACE`, exigindo PostgreSQL 14+ para uso em servidor externo.
-- Sessões em cookie HttpOnly e SameSite=Strict; tokens aleatórios armazenados como hash no banco; limitação de tentativas de login e validação de origem. Cookie Secure quando a conexão é HTTPS.
-
-O servidor escuta apenas no próprio computador (`127.0.0.1`). A aplicação é um MVP local, com um administrador e um processo de banco embarcado. Para disponibilizar em rede, será necessário configurar hospedagem, HTTPS e, conforme a carga, adaptar o acesso ao banco para PostgreSQL externo. A entrega não presume implantação pública ou alta disponibilidade. A lista operacional é carregada em memória no navegador; paginação no servidor fica para crescimento além do volume acadêmico.
-
-Os dados sobrevivem à recarga e ao reinício. Para backup, **pare o servidor** e copie toda a pasta `data/` para outro local. Para restauração, use uma cópia íntegra com o servidor parado. Não edite os arquivos internos do banco manualmente. O PDF original permanece intacto na pasta superior.
-
-## Estrutura
-
-```text
-signy-mvp/
-  public/             Interface em português
-  server.mjs          Autenticação, API e regras de negócio
-  schema.sql          Estrutura PostgreSQL e auditoria
-  tests/              Testes de integração e navegador
-  data/               Banco persistente local (gerado na execução)
-  .env.example        Configuração opcional
-  Conectar ao Neon.cmd Configurador seguro da conexão compartilhada
-  Iniciar Signy.cmd   Inicializador para Windows
+```powershell
+npm.cmd install
+npm.cmd start
 ```
 
-## Validação
+Abra http://localhost:3000 ou use **Iniciar Signy.cmd**. Em banco vazio, crie a conta administrativa na tela inicial. Login exige uma senha cadastrada por padrão. `ADMIN_PASSWORD` inicializa a conta `admin` somente em banco vazio. O banco local continua persistido em `data/`; nenhum dado real é criado pelos testes.
 
-Execute `npm test`. Os testes usam banco em memória e não alteram os dados da academia. Cobrem autenticação, CPF duplicado, valores inválidos, matrícula única, plano inativo, presença vigente/duplicada, transação de fichas, proteção de vínculos, cancelamento, fim de mês, vencimento, auditoria e troca de senha.
+`OPEN_ACCESS=true` permite demonstração local com qualquer senha. Esse modo é desabilitado em produção. Contas antigas criadas no acesso aberto precisam receber senhas reais antes da migração: veja [DEPLOY.md](DEPLOY.md).
 
-`tests/browser.mjs` realiza o percurso com Playwright e Edge: login, sete módulos, treino, edição, consulta, recarga e tela de 390 px. `tests/real-flow.browser.mjs` abre um servidor completo com banco persistente em disco, cria professor, plano, aluno, matrícula, exercício, ficha e presença, reinicia o servidor e confere novamente todos os vínculos. Execute `node tests/real-flow.browser.mjs`; o banco temporário é apagado somente depois da verificação. Para repetir em outra máquina, disponibilize o pacote Playwright (ou indique seu caminho em `PLAYWRIGHT_MODULE`) e instale Edge. As capturas ficam em `test-results/`.
+## Perfis e permissões
 
-**Fora do escopo, conforme o PDF:** pagamentos, cobrança, integração com catracas/biometria, aplicativo para aluno, notificações, avaliação física e relatórios avançados.
+| Perfil | Gestão | Treinamento | Presença | Financeiro | Equipe / BI |
+| --- | --- | --- | --- | --- | --- |
+| Administrador | Completa | Completo | Registra | Completo | Sim |
+| Recepcionista | Alunos e matrículas; consulta os demais | Consulta | Registra | Opera | Não |
+| Professor | Consulta sem CPF/contatos dos alunos | Exercícios e suas próprias fichas | Registra | Não | Não |
+| Aluno | Próprio perfil | Próprias fichas ativas e vídeos | Consulta a própria | Próprias mensalidades e recibos | Não |
+
+A conta de professor deve ser vinculada a um professor cadastrado. Somente administradores criam/aprovam contas da equipe e alteram perfis. Novas contas da equipe começam como recepcionista, salvo escolha explícita. O servidor verifica cada operação; o aluno não acessa `/api/data`, indicadores ou cadastros da equipe.
+
+**Primeiro acesso do aluno:** cadastrar um aluno com e-mail cria sua conta pendente (`aluno.ID`) e um convite. Com Resend configurado, o convite é enviado por e-mail. Sem serviço configurado, abra o detalhe do aluno e clique **Enviar convite de acesso** para obter um link compartilhável. O aluno define a senha e ativa a conta. Convites expiram em 24 horas; recuperações, em 30 minutos. Ambos têm uso único e invalidam sessões anteriores.
+
+**Recuperação:** o login tem **Esqueci minha senha**. Requer e-mail cadastrado e Resend configurado. Um administrador também pode gerar um link pela lista de usuários. Tokens são armazenados apenas como hash; o fluxo público não revela se a conta existe.
+
+## Financeiro
+
+A matrícula nova gera uma mensalidade por mês contratado, com valor e duração preservados na contratação. Vencimentos usam a data inicial, ajustando automaticamente meses curtos. Alterações no plano não reescrevem cobranças. A listagem tem busca, situação e paginação no servidor (30 registros).
+
+Situações: **Pendente**, **Em atraso**, **Pago** e **Cancelado**. A equipe registra pagamentos recebidos com meio e comprovante; concorrência não permite confirmar duas vezes a mesma mensalidade. Pagamentos confirmados têm recibo imprimível, e cada operação mantém histórico. Cancelamentos exigem motivo e preservam os registros. Cancelar uma matrícula não perdoa automaticamente mensalidades; a equipe decide cada cobrança.
+
+Matrículas anteriores não geram cobranças retroativas durante a migração. A ação **Gerar mensalidades de matrículas anteriores** é explícita e usa o valor atual do plano quando não há contrato histórico. O número da matrícula aparece no detalhe. Confira esse valor antes de gerar.
+
+### PIX e cartão
+
+O adaptador do Mercado Pago cria um checkout hospedado para PIX/cartão, com retorno ao Signy, webhook assinado e conciliação por identificador. O QR PIX dinâmico e os campos de cartão ficam no checkout do provedor. O Signy nunca recebe números de cartão. Abrir o checkout ou voltar ao site não confirma o pagamento: somente a consulta autenticada ao provedor permite atualizar a situação.
+
+Configure `APP_URL` (HTTPS), `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`. Use `MP_SANDBOX=true` para o checkout de testes. Configure notificações **payment** em `/api/payments/webhook`. Duplicatas de notificações não duplicam pagamentos; divergências de valor/moeda e pagamentos duplicados exigem conciliação. Estornos comunicados pelo provedor ficam no histórico e reabrem a mensalidade. A integração foi verificada localmente com dados controlados; transações reais exigem homologação na conta do provedor.
+
+## Área do aluno e indicadores
+
+O aluno tem interface própria para celular com **Meu treino**, **Frequência** e **Perfil**, exercícios ordenados, séries/repetições/carga e detalhes expansíveis. Vídeos HTTPS abrem somente após toque. Frequência mostra as últimas 90 entradas; mensalidades, as últimas 36. O manifesto e service worker permitem instalação como PWA em navegadores compatíveis; dados pessoais e APIs não entram no cache. Sem conexão há uma tela de orientação; presença e pagamento exigem conexão.
+
+O administrador acompanha alunos ativos, matrículas e pessoas distintas, cancelamentos, frequência diária, horários de entrada, inadimplência, retenção e valores recebidos por mês. O período é explícito; detalhes ficam recolhidos. Retenção considera os alunos matriculados no início que continuam matriculados na data final. Cancelamentos novos têm data própria; os antigos usam a última alteração e não permitem reconstrução histórica exata. A tela Presenças permite registrar saída nas últimas 24 horas com horário do servidor; o tempo médio de permanência considera apenas registros com entrada e saída confirmadas. Sem saídas no período, o indicador informa ausência de dados.
+
+## Performance e experiência
+
+O painel inicial usa apenas `/api/overview`. Cadastros completos são carregados sob demanda. `/api/data` reúne os catálogos em uma consulta SQL, além da autorização e atualização de vencimentos. As listagens renderizam até 30 itens por página; os catálogos de seleção permanecem carregados em memória. Financeiro pagina no banco. Para volumes maiores, a próxima evolução é substituir o catálogo integral por endpoints de busca específicos.
+
+`Server-Timing` mostra tempo total, tempo de banco e contagem de consultas em cada resposta da API. `PERFORMANCE_LOG=true` registra essas medidas, sem credenciais ou corpos. `npm.cmd run performance` mede os fluxos com banco isolado. A [medição antes/depois](docs/PERFORMANCE.md) distingue resultados locais das condições de Render/Neon.
+
+A identidade usa o lettering angular SIGNY do documento, em SVG, variantes clara/escura, favicon e ícones PWA. Controles de conta e saída permanecem na barra superior direita. Tabelas viram cards no celular; modais, teclado, labels, foco e mensagens seguem componentes compartilhados. A saída limpa a interface imediatamente e só libera novo login após invalidar a sessão no servidor.
+
+## Verificar e publicar
+
+```powershell
+npm.cmd run lint
+npm.cmd test
+npm.cmd run test:browser
+npm.cmd run build
+```
+
+Os testes usam bancos isolados. A suíte cobre gestão original, perfis, convites, recuperação, isolamento do aluno, financeiro, conciliação, recibos, BI e interface em 320, 390, 768, 1024 e 1440 px. No Windows usa Edge; defina `PLAYWRIGHT_CHANNEL=chromium` para Chromium instalado pelo Playwright.
+
+O build gera `dist/` com os arquivos necessários à produção. GitHub Actions instala, valida sintaxe, testa API/navegador e gera o pacote. Publicação via Render depende do secret `RENDER_DEPLOY_HOOK`; o Blueprint desabilita a publicação direta por push para respeitar a validação. Veja [DEPLOY.md](DEPLOY.md).
+
+As migrações são aditivas/idempotentes em `schema.sql`. Mantenha backup antes de atualizar produção. Não envie `.env`, `data/` ou chaves ao repositório. Para banco local, pare o servidor e copie `data/`; para PostgreSQL externo, use o backup do provedor.

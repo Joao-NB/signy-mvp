@@ -23,7 +23,7 @@ const freePort = () => new Promise((resolve, reject) => {
 async function startServer(port) {
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: path.resolve('.'),
-    env: { ...process.env, OPEN_ACCESS: 'false', NODE_ENV: 'development', DATA_DIR: dataDir, PORT: String(port), HOST: '127.0.0.1', ADMIN_PASSWORD: '' },
+    env: { ...process.env, DATABASE_URL: '', OPEN_ACCESS: 'false', NODE_ENV: 'development', DATA_DIR: dataDir, PORT: String(port), HOST: '127.0.0.1', ADMIN_PASSWORD: '' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let output = '';
@@ -65,7 +65,7 @@ async function saveForm(page, table, values) {
   await page.waitForFunction(() => !document.querySelector('#modal').open);
 }
 
-const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' });
 let server;
 try {
   const port = await freePort();
