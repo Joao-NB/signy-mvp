@@ -67,7 +67,8 @@ app.post('/api/login',async(req,res)=>{
   return issueSession(res,user,req.secure);
  }
  const key=req.ip, now=Date.now(), attempt=attempts.get(key); if(attempt&&attempt.until>now&&attempt.count>=10)return res.status(429).json({error:'Muitas tentativas. Aguarde 15 minutos.'});
- const user=(await q('SELECT * FROM usuario WHERE login=$1',[String(req.body.login||'').trim().toLowerCase()]))[0];
+ const identifier=String(req.body.login||'').trim().toLowerCase();
+ const user=(await q('SELECT * FROM usuario WHERE login=$1 OR (email IS NOT NULL AND lower(email)=$1) LIMIT 1',[identifier]))[0];
  if(!user||!await bcrypt.compare(String(req.body.senha||''),user.senha_hash)){const a=attempt&&attempt.until>now?attempt:{count:0,until:now+900000};a.count++;attempts.set(key,a);return res.status(401).json({error:'Usuário ou senha incorretos.'});}
  if(!user.aprovado)return res.status(403).json({error:'Sua conta foi criada e aguarda aprovação de um administrador da academia.'});
  attempts.delete(key);await issueSession(res,user,req.secure);
