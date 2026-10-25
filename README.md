@@ -20,7 +20,7 @@ Abra http://localhost:3000 ou use **Iniciar Signy.cmd**. Em banco vazio, crie a 
 | Administrador | Completa | Completo | Registra | Completo | Sim |
 | Recepcionista | Alunos e matrículas; consulta os demais | Consulta | Registra | Opera | Não |
 | Professor | Consulta sem CPF/contatos dos alunos | Exercícios e suas próprias fichas | Registra | Não | Não |
-| Aluno | Próprio perfil | Próprias fichas ativas e vídeos | Consulta a própria | Próprias mensalidades e recibos | Não |
+| Aluno | Próprio perfil | Próprias fichas ativas e vídeos | Consulta e check-in por localização | Próprias mensalidades e recibos | Não |
 
 A conta de professor deve ser vinculada a um professor cadastrado. Somente administradores criam/aprovam contas da equipe e alteram perfis. Novas contas da equipe começam como recepcionista, salvo escolha explícita. O servidor verifica cada operação; o aluno não acessa `/api/data`, indicadores ou cadastros da equipe.
 
@@ -32,9 +32,9 @@ A conta de professor deve ser vinculada a um professor cadastrado. Somente admin
 
 A matrícula nova gera uma mensalidade por mês contratado, com valor e duração preservados na contratação. Vencimentos usam a data inicial, ajustando automaticamente meses curtos. Alterações no plano não reescrevem cobranças. A listagem tem busca, situação e paginação no servidor (30 registros).
 
-Situações: **Pendente**, **Em atraso**, **Pago** e **Cancelado**. A equipe registra pagamentos recebidos com meio e comprovante; concorrência não permite confirmar duas vezes a mesma mensalidade. Pagamentos confirmados têm recibo imprimível, e cada operação mantém histórico. Cancelamentos exigem motivo e preservam os registros. Cancelar uma matrícula não perdoa automaticamente mensalidades; a equipe decide cada cobrança.
+Situações: **Pendente**, **Em atraso**, **Pago** e **Cancelado**, acompanhadas do estado do gateway quando disponível. **Registrar recebimento** abre o modal existente diretamente da listagem. A referência é opcional em dinheiro; PIX, cartão e transferência exigem uma referência livre de até 300 caracteres, com orientação contextual. Concorrência não permite confirmar duas vezes a mesma mensalidade. Pagamentos confirmados têm recibo imprimível, e cada operação mantém histórico. Cancelamentos exigem motivo e preservam os registros. Cancelar uma matrícula não perdoa automaticamente mensalidades; a equipe decide cada cobrança.
 
-Matrículas anteriores não geram cobranças retroativas durante a migração. A ação **Gerar mensalidades de matrículas anteriores** é explícita e usa o valor atual do plano quando não há contrato histórico. O número da matrícula aparece no detalhe. Confira esse valor antes de gerar.
+Matrículas anteriores não geram cobranças retroativas durante a migração. **Regularizar matrículas antigas** é uma seção secundária que permite conferir matrícula, aluno e valor. A geração preserva o contrato ou as parcelas históricas consistentes; sem histórico, exige confirmação explícita do preço atual. A listagem distingue base vazia, filtros sem resultados e erro de carregamento.
 
 ### PIX e cartão
 
@@ -42,9 +42,13 @@ O adaptador do Mercado Pago cria um checkout hospedado para PIX/cartão, com ret
 
 Configure `APP_URL` (HTTPS), `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`. Use `MP_SANDBOX=true` para o checkout de testes. Configure notificações **payment** em `/api/payments/webhook`. Duplicatas de notificações não duplicam pagamentos; divergências de valor/moeda e pagamentos duplicados exigem conciliação. Estornos comunicados pelo provedor ficam no histórico e reabrem a mensalidade. A integração foi verificada localmente com dados controlados; transações reais exigem homologação na conta do provedor.
 
+As novas parcelas entram em uma fila persistente de e-mails financeiros. Com Resend configurado, o servidor processa a fila e registra aceitação pelo provedor separadamente de entrega e pagamento. A equipe pode solicitar reenvio controlado e consultar entrega no histórico da mensalidade. Os e-mails incluem identificação, valor, vencimento, portal e link PIX/cartão quando o gateway está configurado.
+
 ## Área do aluno e indicadores
 
 O aluno tem interface própria para celular com **Meu treino**, **Frequência** e **Perfil**, exercícios ordenados, séries/repetições/carga e detalhes expansíveis. Vídeos HTTPS abrem somente após toque. Frequência mostra as últimas 90 entradas; mensalidades, as últimas 36. O manifesto e service worker permitem instalação como PWA em navegadores compatíveis; dados pessoais e APIs não entram no cache. Sem conexão há uma tela de orientação; presença e pagamento exigem conexão.
+
+Em **Frequência**, o aluno pode registrar presença usando a localização atual. Antes, o administrador deve abrir **Configurar academia** na barra superior e salvar coordenadas reais, raio, precisão máxima e horário. O backend verifica localização, matrícula e duplicidade diária; salva apenas a presença, sem reter as coordenadas. HTTPS é obrigatório em produção. GPS pode ser falsificado e não constitui prova infalível de presença física.
 
 O administrador acompanha alunos ativos, matrículas e pessoas distintas, cancelamentos, frequência diária, horários de entrada, inadimplência, retenção e valores recebidos por mês. O período é explícito; detalhes ficam recolhidos. Retenção considera os alunos matriculados no início que continuam matriculados na data final. Cancelamentos novos têm data própria; os antigos usam a última alteração e não permitem reconstrução histórica exata. A tela Presenças permite registrar saída nas últimas 24 horas com horário do servidor; o tempo médio de permanência considera apenas registros com entrada e saída confirmadas. Sem saídas no período, o indicador informa ausência de dados.
 
@@ -62,6 +66,7 @@ A identidade usa o lettering angular SIGNY do documento, em SVG, variantes clara
 npm.cmd run lint
 npm.cmd test
 npm.cmd run test:browser
+npm.cmd run test:real
 npm.cmd run build
 ```
 
@@ -69,4 +74,6 @@ Os testes usam bancos isolados. A suíte cobre gestão original, perfis, convite
 
 O build gera `dist/` com os arquivos necessários à produção. GitHub Actions instala, valida sintaxe, testa API/navegador e gera o pacote. Publicação via Render depende do secret `RENDER_DEPLOY_HOOK`; o Blueprint desabilita a publicação direta por push para respeitar a validação. Veja [DEPLOY.md](DEPLOY.md).
 
-As migrações são aditivas/idempotentes em `schema.sql`. Mantenha backup antes de atualizar produção. Não envie `.env`, `data/` ou chaves ao repositório. Para banco local, pare o servidor e copie `data/`; para PostgreSQL externo, use o backup do provedor.
+O esquema base continua em `schema.sql`; novas migrações ficam em `migrations/`, aplicadas em transação e registradas em `schema_migration`. Mantenha backup antes de atualizar produção. Não envie `.env`, `data/` ou chaves ao repositório. Para banco local, pare o servidor e copie `data/`; para PostgreSQL externo, use o backup do provedor.
+
+Veja [correções funcionais, testes e limites de validação](docs/CORRECOES-FUNCIONAIS.md) para detalhes dos arquivos alterados, configurações e homologação pendente de Resend, Mercado Pago e GPS real.

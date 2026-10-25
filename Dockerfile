@@ -2,7 +2,8 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
-COPY server.mjs database.mjs schema.sql permissions.mjs telemetry.mjs account-flows.mjs financial.mjs experience.mjs ./
+COPY server.mjs database.mjs schema.sql migrations.mjs attendance.mjs mail.mjs permissions.mjs telemetry.mjs account-flows.mjs financial.mjs experience.mjs ./
+COPY migrations ./migrations
 COPY public ./public
 RUN mkdir -p /var/lib/signy && chown -R node:node /var/lib/signy
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000

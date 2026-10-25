@@ -1,29 +1,38 @@
 import bcrypt from 'bcryptjs';
 import {randomBytes,createHash} from 'node:crypto';
 import {publicUser,requirePermission} from './permissions.mjs';
+import {mailService,mailReady,appOrigin} from './mail.mjs';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const validEmail=email=>typeof email==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)&&email.length<=150;
 export function accountFlows(db){
+ const mail=mailService(db);
  const q=async(sql,params=[]) => (await db.query(sql,params)).rows;
  async function tokenFor(id,finalidade){const token=randomBytes(32).toString('hex');await db.transaction(async tx=>{await tx.query('SELECT id FROM usuario WHERE id=$1 FOR UPDATE',[id]);await tx.query('DELETE FROM token_acesso WHERE id_usuario=$1 AND finalidade=$2',[id,finalidade]);await tx.query("INSERT INTO token_acesso VALUES($1,$2,$3,NOW()+($4::int * INTERVAL '1 minute'),NULL)",[hash(token),id,finalidade,finalidade==='convite'?1440:30]);});return token;}
- async function deliver(email,token,finalidade){
-  const url=process.env.APP_URL?new URL('/#'+finalidade+'='+token,process.env.APP_URL).href:null;
-  if(!process.env.RESEND_API_KEY||!process.env.MAIL_FROM||!url)return {enviado:false,token,url};
-  try{const res=await fetch('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':hash(token)},body:JSON.stringify({from:process.env.MAIL_FROM,to:[email],subject:finalidade==='convite'?'Seu convite para o Signy':'Recuperar acesso ao Signy',text:`Abra ${url} para definir sua senha. O link é temporário e só pode ser usado uma vez.`})});return res.ok?{enviado:true}:{enviado:false,token,url};}catch{return {enviado:false,token,url};}
+ async function deliver(email,token,finalidade,login=''){
+  const url=appOrigin()?new URL('/#'+finalidade+'='+token,appOrigin()).href:null;
+  const result=await mail.send({to:email,purpose:finalidade,key:hash(token),subject:finalidade==='convite'?'Seu convite para o Signy':'Recuperar acesso ao Signy',text:`Usuário: ${login}\nAbra ${url} para definir sua senha. O link é temporário e só pode ser usado uma vez.`});
+  return result.enviado?result:{...result,token,url};
  }
  async function inviteStudent(student){
   if(!student.email)return null;
-  let u=(await q('SELECT * FROM usuario WHERE id_aluno=$1',[student.id_aluno]))[0];
-  if(u?.aprovado)throw Error('Este aluno já possui uma conta ativa. Use a recuperação de senha.');
-  if(!u)u=(await q("INSERT INTO usuario(nome,login,senha_hash,perfil,email,id_aluno,aprovado) VALUES($1,$2,$3,'aluno',$4,$5,FALSE) RETURNING *",[student.nome,`aluno.${student.id_aluno}`,await bcrypt.hash(randomBytes(32).toString('hex'),12),student.email,student.id_aluno]))[0];
-  const token=await tokenFor(u.id,'convite');return {...await deliver(student.email,token,'convite'),login:u.login};
+  const u=await db.transaction(async tx=>{
+   const a=(await tx.query('SELECT * FROM aluno WHERE id_aluno=$1 FOR UPDATE',[student.id_aluno])).rows[0];if(!a||!validEmail(a.email))throw Error('Cadastre um e-mail válido para enviar o convite.');
+   let account=(await tx.query('SELECT * FROM usuario WHERE id_aluno=$1 FOR UPDATE',[a.id_aluno])).rows[0];
+   if(account&&account.perfil!=='aluno')throw Error('O vínculo da conta precisa ser revisado pelo administrador.');
+   if(account?.aprovado)throw Error('Este aluno já possui uma conta ativa. Use a recuperação de senha.');
+   if((await tx.query('SELECT id FROM usuario WHERE lower(email)=lower($1) AND ($2::int IS NULL OR id<>$2)',[a.email,account?.id||null])).rows.length)throw Error('Este e-mail já está associado a outra conta. Peça ao administrador para conferir o cadastro.');
+   if(account)account=(await tx.query('UPDATE usuario SET nome=$1,email=$2 WHERE id=$3 RETURNING *',[a.nome,a.email.toLowerCase(),account.id])).rows[0];
+   else account=(await tx.query("INSERT INTO usuario(nome,login,senha_hash,perfil,email,id_aluno,aprovado) VALUES($1,$2,$3,'aluno',$4,$5,FALSE) RETURNING *",[a.nome,`aluno.${a.id_aluno}`,await bcrypt.hash(randomBytes(32).toString('hex'),12),a.email.toLowerCase(),a.id_aluno])).rows[0];
+   return account;
+  });
+  const token=await tokenFor(u.id,'convite');return {...await deliver(u.email,token,'convite',u.login),login:u.login};
  }
  function publicRoutes(app){
   app.post('/api/recovery/request',async(req,res)=>{
-   if(!process.env.RESEND_API_KEY||!process.env.MAIL_FROM||!process.env.APP_URL)return res.status(503).json({error:'Recuperação por e-mail indisponível. Peça um link ao administrador da academia.'});
+   if(!mailReady())return res.status(503).json({error:'Recuperação por e-mail indisponível. Peça um link ao administrador da academia.'});
    const u=(await q('SELECT * FROM usuario WHERE login=$1 OR lower(email)=$1 LIMIT 1',[String(req.body.identificacao||'').trim().toLowerCase()]))[0];
    res.json({message:'Se houver uma conta com e-mail cadastrado, você receberá um link temporário.'});
-   if(u?.email&&u.aprovado)tokenFor(u.id,'recuperacao').then(token=>deliver(u.email,token,'recuperacao')).catch(()=>{});
+   if(u?.email&&u.aprovado)tokenFor(u.id,'recuperacao').then(token=>deliver(u.email,token,'recuperacao',u.login)).catch(()=>console.error('Falha interna na solicitação de recuperação.'));
   });
   app.post('/api/access/complete',async(req,res)=>{
    const {token,senha}=req.body;if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))throw Error('Link inválido.');

@@ -8,7 +8,7 @@ function auth() {
   const values=Object.fromEntries(new FormData(form));
   const label=submit.innerHTML;submit.disabled=true;submit.textContent='Entrando…';
   try{
-   user=await api('/login','POST',values);$('#toast').classList.remove('show');clearTimeout(toast.timer);section=user.perfil==='aluno'?'treino':'home';await refresh();
+   user=await api('/login','POST',values);$('#toast').classList.remove('show');clearTimeout(toast.timer);section=initialSection();await refresh();
   }catch(err){error.textContent=err.message;}finally{submit.disabled=false;submit.innerHTML=label;}
  };
 }

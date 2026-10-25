@@ -10,9 +10,12 @@ import { instrumentDatabase, timing } from './telemetry.mjs';
 import { accountFlows } from './account-flows.mjs';
 import { financialModule, generateInstallments } from './financial.mjs';
 import { experienceModule } from './experience.mjs';
+import { migrate } from './migrations.mjs';
+import { attendanceModule } from './attendance.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url));
 export const db=await connectDatabase(root);
 await db.exec(readFileSync(path.join(root,'schema.sql'),'utf8'));
+await migrate(db,root);
 instrumentDatabase(db);
 const accounts=accountFlows(db);
 const q=async(sql,params=[]) => (await db.query(sql,params)).rows;
@@ -73,7 +76,7 @@ app.post('/api/register',(req,res)=>res.status(404).json({error:'Cadastro públi
 const recoveryAttempts=new Map();
 app.use(['/api/recovery','/api/access'],(req,res,next)=>{const now=Date.now(),previous=recoveryAttempts.get(req.ip),entry=previous&&previous.until>now?previous:{count:0,until:now+900000};entry.count++;recoveryAttempts.set(req.ip,entry);if(entry.count>10)return res.status(429).json({error:'Muitas solicitações. Aguarde 15 minutos.'});next();});
 accounts.publicRoutes(app);
-const finance=financialModule(db);
+export const finance=financialModule(db);
 finance.publicRoutes(app);
 app.post('/api/logout',async(req,res)=>{await q('DELETE FROM sessao WHERE token=$1',[sessions(req)]);res.set('Set-Cookie',`signy=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${req.secure?'; Secure':''}`).json({ok:true});});
 app.use('/api',async(req,res,next)=>{try{const user=(await q('SELECT u.id,u.nome,u.login,u.perfil,u.id_aluno,u.id_professor FROM sessao s JOIN usuario u ON u.id=s.id_usuario WHERE token=$1 AND expira>NOW() AND u.aprovado=TRUE',[sessions(req)]))[0];if(!user)return res.status(401).json({error:'Entre na sua conta para continuar.'});req.user=user;next();}catch(e){next(e);}});
@@ -81,9 +84,10 @@ app.get('/api/me',(req,res)=>res.json(publicUser(req.user)));
 accounts.protectedRoutes(app);
 finance.protectedRoutes(app);
 experienceModule(app,db);
+attendanceModule(app,db);
 app.get('/api/users',requirePermission('users'),async(req,res)=>res.json(await q('SELECT id,nome,login,aprovado,perfil,email,id_professor,id_aluno FROM usuario ORDER BY aprovado,nome,id')));
 app.post('/api/users/:id/approve',requirePermission('users'),async(req,res)=>{
- const rows=await q('UPDATE usuario SET aprovado=TRUE WHERE id=$1 RETURNING id,nome,login,aprovado',[req.params.id]);
+ const rows=await q('UPDATE usuario SET aprovado=TRUE WHERE id=$1 AND id_aluno IS NULL RETURNING id,nome,login,aprovado',[req.params.id]);
  if(!rows.length)return res.status(404).json({error:'Usuário não encontrado.'});
  res.json(rows[0]);
 });
@@ -121,7 +125,7 @@ app.get('/api/overview',requirePermission('read','aluno'),async(req,res)=>{
  res.json(result);
 });
 app.get('/api/data',requirePermission('read','aluno'),async(req,res)=>{await expire();const select=Object.entries(models).map(([table,[pk]])=>`COALESCE((SELECT json_agg(r) FROM (SELECT * FROM ${table} ORDER BY ${pk} DESC) r),'[]') AS ${table}`);select.push("COALESCE((SELECT json_agg(r) FROM (SELECT * FROM ficha_exercicio ORDER BY ordem,id_ficha_exercicio) r),'[]') AS ficha_exercicio","TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje");const [data]=await q('SELECT '+select.join(','));if(req.user.perfil==='professor'){data.aluno=data.aluno.map(a=>({id_aluno:a.id_aluno,nome:a.nome,data_cadastro:a.data_cadastro}));data.professor=data.professor.map(p=>({id_professor:p.id_professor,nome:p.nome,especialidade:p.especialidade,data_admissao:p.data_admissao}));}res.json(data);});
-function clean(table,body){if(table==='plano'&&body.duracao_meses!==undefined&&(!Number.isInteger(Number(body.duracao_meses))||Number(body.duracao_meses)<1||Number(body.duracao_meses)>120))throw Error('A dura??o do plano deve ser de 1 a 120 meses.');const data={};for(const key of models[table].slice(1)){if(body[key]!==undefined)data[key]=typeof body[key]==='string'?body[key].trim()||null:body[key];}if('cpf'in data)data.cpf=String(data.cpf||'').replace(/\D/g,'');if(data.email){data.email=data.email.toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))throw Error('Informe um e-mail válido.');}for(const key of ['nome','descricao','grupo_muscular'])if(key in data&&data[key]===null&&!(key==='descricao'&&['plano','exercicio'].includes(table)))throw Error('Preencha os campos obrigatórios.');return data;}
+function clean(table,body){if(table==='plano'&&body.duracao_meses!==undefined&&(!Number.isInteger(Number(body.duracao_meses))||Number(body.duracao_meses)<1||Number(body.duracao_meses)>120))throw Error('A duração do plano deve ser de 1 a 120 meses.');const data={};for(const key of models[table].slice(1)){if(body[key]!==undefined)data[key]=typeof body[key]==='string'?body[key].trim()||null:body[key];}if('cpf'in data)data.cpf=String(data.cpf||'').replace(/\D/g,'');if(data.email){data.email=data.email.toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))throw Error('Informe um e-mail válido.');}for(const key of ['nome','descricao','grupo_muscular'])if(key in data&&data[key]===null&&!(key==='descricao'&&['plano','exercicio'].includes(table)))throw Error('Preencha os campos obrigatórios.');return data;}
 async function insert(tx,table,data){const keys=Object.keys(data);return (await tx.query(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map((_,i)=>'$'+(i+1)).join(',')}) RETURNING *`,Object.values(data))).rows[0];}
 async function exercises(tx,id,list){if(!Array.isArray(list)||!list.length||list.length>100)throw Error('Adicione pelo menos um exercício à ficha.');await tx.query('DELETE FROM ficha_exercicio WHERE id_ficha=$1',[id]);for(const item of list){await insert(tx,'ficha_exercicio',{id_ficha:id,id_exercicio:item.id_exercicio,ordem:item.ordem,series:item.series,repeticoes:item.repeticoes,carga_sugerida:item.carga_sugerida===''?null:item.carga_sugerida,observacao:item.observacao||null});}}
 app.post('/api/:table',async(req,res,next)=>{const table=req.params.table;if(!models[table])return res.sendStatus(404);if(!permissions[req.user.perfil].write.includes(table))return res.status(403).json({error:'Seu perfil não tem permissão para esta operação.'});const data=clean(table,req.body);
@@ -145,8 +149,10 @@ app.use('/api',(req,res)=>res.status(404).json({error:'Operação não encontrad
 app.use(express.static(path.join(root,'public')));
 app.use((err,req,res,next)=>{let message=err.message;if(err.code==='23505'){const constraint=err.constraint||'';message=constraint.includes('usuario_login')?'Este nome de usuário já está em uso.':constraint.includes('cpf')?'CPF já cadastrado.':constraint.includes('email')?'E-mail já cadastrado.':constraint.includes('matricula')?'Este aluno já possui uma matrícula vigente.':constraint.includes('presenca')?'A presença deste aluno já foi registrada hoje.':'Não é possível repetir o mesmo exercício na ficha.';}else if(err.code==='23503')message='Operação bloqueada: existem registros vinculados ou uma referência não existe.';else if(['23502','23514','22001','22007','22008','22P02','22003'].includes(err.code))message='Confira os campos obrigatórios, datas, CPF (11 dígitos) e valores positivos.';else if(err.code){console.error(err);message='Não foi possível concluir a operação.';}res.status(err.status||400).json({error:message});});
 if(process.env.NODE_ENV!=='test'){
+ const mailTimer=setInterval(()=>finance.runEmailQueue().catch(()=>console.error('Falha no processamento da fila financeira.')),30000);mailTimer.unref();
+ finance.runEmailQueue().catch(()=>console.error('Falha no processamento da fila financeira.'));
  const server=app.listen(Number(process.env.PORT||3000),process.env.HOST||'127.0.0.1',()=>console.log(`Signy disponível na porta ${process.env.PORT||3000}`));
  let stopping=false;
- const shutdown=()=>{if(stopping)return;stopping=true;const deadline=setTimeout(()=>process.exit(1),25000);deadline.unref();server.close(async()=>{try{await db.close();process.exit(0);}catch{process.exit(1);}});};
+ const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(mailTimer);const deadline=setTimeout(()=>process.exit(1),25000);deadline.unref();server.close(async()=>{try{await db.close();process.exit(0);}catch{process.exit(1);}});};
  process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
 }

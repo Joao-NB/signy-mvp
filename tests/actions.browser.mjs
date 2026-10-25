@@ -189,6 +189,9 @@ try {
 
   await page.locator('[data-action=password]').click();
   await page.locator('[name=atual]').fill('BotoesTeste123!');
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  assert.equal(await page.locator('[name=atual]').inputValue(),'BotoesTeste123!');
+  assert.equal(await page.locator('[name=atual]').evaluate(el=>el===document.activeElement),true);
   await page.locator('[name=nova]').fill('SenhaRefinada123!');
   await page.locator('[name=confirmacao]').fill('diferente123');
   await page.getByRole('button', { name: 'Salvar conta' }).click();

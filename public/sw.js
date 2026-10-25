@@ -1,5 +1,5 @@
 // Only cache public assets. Authenticated APIs and student data stay on the server.
-const CACHE='signy-shell-v4';
+const CACHE='signy-shell-v5';
 const ASSETS=['/offline.html','/style.css','/identity.css','/platform.css','/fonts.css','/auth.js','/features.js','/app.js','/logo.svg?v=4','/logo-light.svg?v=4','/icon-192.png?v=4','/icon-512.png?v=4'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));self.skipWaiting();});
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

@@ -1,0 +1,57 @@
+# Correções funcionais do Signy — outubro de 2026
+
+## Interface, permissões e financeiro
+
+Os grupos da sidebar agora são filtrados antes da renderização: grupos sem itens autorizados não geram título, container ou espaço. A identificação usa `·`, trata valores ausentes e mantém o perfil da sessão. O SVG de configurações foi substituído por uma engrenagem. O professor deixa de ver o botão de criação de aluno no painel; a autorização no servidor permanece obrigatória.
+
+O menu Mais usa o recurso nativo Popover quando disponível para aparecer acima de tabelas e containers com overflow. Há alternativa com posicionamento fixo, fechamento externo/Escape/Tab, retorno do foco com Escape, setas e respeito a movimento reduzido. Redimensionar ou rolar a tela fecha o menu para preservar seu contexto. A abertura dos modais posiciona o foco de forma síncrona, sem uma transferência atrasada que interrompa o preenchimento.
+
+Financeiro informa quando a base não tem mensalidades, quando os filtros não encontram resultados e quando há erro de carregamento. Cada parcela mostra matrícula e ação **Registrar recebimento**, apenas se pendente/em atraso. A regularização fica recolhida e exibe aluno/valor antes da geração; matrículas inexistentes são rejeitadas, parcelas existentes não são duplicadas e valores contratados são preservados. Sem contrato histórico, parcelas anteriores com valor consistente servem de referência. Quando não existe referência histórica, é necessário conferir e confirmar o preço atual; ele é registrado como valor contratado para futuras regularizações.
+
+O comprovante é opcional em dinheiro. PIX, cartão e transferência continuam exigindo referência livre, limitada a 300 caracteres. Placeholder, ajuda próxima ao campo, indicação de obrigatoriedade e mensagens de validação acompanham o método. Trocar o método preserva o texto digitado. Referência vazia fica `NULL`; o recibo manual omite o campo e identifica a confirmação pela recepção. A referência interna do registro manual não é apresentada como comprovante eletrônico.
+
+## Acesso e e-mail
+
+`mail.mjs` centraliza a integração REST do Resend. `APP_URL` deve ser uma origem sem caminho, credenciais, query ou fragmento, com HTTPS em produção. Em desenvolvimento, HTTP é permitido apenas em localhost/127.0.0.1. `MAIL_FROM` é validado quanto ao formato, mas autorização do remetente e verificação DNS dependem da conta Resend. `RESEND_API_KEY` permanece apenas no backend.
+
+Cada envio registra finalidade, chave de idempotência, resultado e identificador do provedor em `email_envio`. A resposta HTTP só conta como aceitação quando contém o identificador de e-mail. Falhas registram códigos internos sem expor tokens, corpo, endereço ou credenciais nos logs. Aceitação não prova entrega. No histórico financeiro, **Consultar entrega** consulta o estado oficial (`last_event`) pela API de e-mails enviados. A chave Resend precisa permitir essa leitura para confirmar entrega; uma chave limitada ao envio não fornece essa confirmação.
+
+Recuperação mantém resposta genérica para contas existentes/inexistentes, limite de solicitações, hashes de tokens, expiração, uso único e invalidação de sessões. Erros do provedor não mudam a resposta pública. Sem configuração, a interface oferece recuperação assistida pelo administrador. O e-mail inclui o usuário para permitir login após a redefinição.
+
+Convites continuam associados ao cadastro do aluno, separados do cadastro da equipe. Criação/atualização da conta pendente usa transação e valida vínculo/perfil e e-mail ocupado; reenvio usa o endereço atual cadastrado e invalida o convite anterior. Conta ativa exige recuperação, não novo convite. Alunos pendentes aparecem como aguardando ativação; aprovação da equipe não ativa alunos com senha aleatória. A ativação válida define a senha e permite login próprio.
+
+Referências: [envio de e-mail Resend](https://resend.com/docs/api-reference/emails/send-email), [consulta de entrega](https://resend.com/docs/api-reference/emails/retrieve-email).
+
+## Presença pelo celular
+
+O modelo existente contém uma academia por banco, sem tenants ou unidades. A migração `001_checkin_email_gateway.sql` acrescenta `configuracao_academia`, com registro único, nome, latitude/longitude, raio, precisão máxima, abertura/fechamento e auditoria. Nenhuma coordenada real ou fictícia é inserida automaticamente.
+
+O administrador configura a academia pelo botão **Configurar academia** na barra superior. Raio: 10–1000 m, precisão máxima: 5–150 m, sem ultrapassar o raio. Comece avaliando 100–150 m no local real. A janela diária exige abertura anterior ao fechamento no mesmo dia; horários atravessando meia-noite não fazem parte desta configuração. O banco continua usando America/Fortaleza.
+
+O aluno usa **Frequência → Registrar presença**. A localização é solicitada somente após o toque. HTTPS/contexto seguro, navegador compatível, permissão negada, indisponibilidade, timeout, precisão insuficiente, área externa e falha de rede têm mensagens e liberam nova tentativa. O backend identifica o aluno pela sessão e rejeita identificador fornecido pelo cliente. Confere coordenadas, medição recente (60 s), distância Haversine, precisão, horário, matrícula vigente e unicidade diária. Se a margem de precisão ultrapassa o raio, solicita nova medição. A presença entra na mesma tabela `presenca`, com data/hora do servidor; coordenadas não são armazenadas.
+
+GPS pode ser falsificado, e a precisão declarada pelo dispositivo também. O check-in reduz erros operacionais, mas não prova infalivelmente presença física. A recepção continua disponível quando o sinal não permite validação. QR físico pode ser avaliado posteriormente; nenhum hardware foi acrescentado.
+
+## Pagamento online e comunicações financeiras
+
+Preservado Checkout Pro hospedado: PIX dinâmico e cartão de crédito; boleto/lotérica, débito, pré-pago e saldo não são oferecidos pelo adaptador. QR Code/copia e cola e campos de cartão ficam no Mercado Pago, conforme os recursos habilitados na conta. O Signy fornece instruções e o link seguro; não inventa QR ou transação. O link financeiro dos e-mails leva às mensalidades após autenticação, inclusive quando a sessão já existe. O portal mostra situação da mensalidade e informação adicional do gateway (aguardando, falha, cancelamento, estorno).
+
+Uma matrícula nova/regularização enfileira automaticamente os e-mails das parcelas efetivamente geradas. Um worker no servidor roda na inicialização e a cada 30 s, com lotes de até 10 registros, lock de processamento, recuperação de tarefa interrompida, até 5 tentativas de solicitação com intervalo mínimo de 5 min e idempotência Resend. Falhas de entrega após aceitação (por exemplo, bounce) ficam no histórico e exigem reenvio explícito, sem voltar automaticamente à fila. Não roda automaticamente em testes. Sem configuração de e-mail, a fila aguarda. Parcelas pagas/canceladas não são cobradas pelo worker. Sem gateway configurado, a mensagem orienta acessar o portal e procurar a recepção; com gateway, inclui valor, vencimento, competência, matrícula e link PIX/cartão. O nome da academia configurado é usado na mensagem.
+
+**Enviar cobrança por e-mail**, no detalhe da mensalidade, permite reenvio pela equipe com intervalo mínimo de 5 min e bloqueio de envio já pendente. A fila, aceitação, entrega e falha são estados independentes do pagamento. Após uma falha definitiva, a equipe pode solicitar novo envio; confira o e-mail/configuração antes.
+
+Checkout reserva sua chave antes da chamada externa e reutiliza-a após timeout. O lock verifica novamente se a mensalidade está pendente, inclusive em concorrência com recebimento manual. Webhook valida HMAC, horário, request/id e consulta o pagamento autenticado. A conciliação valida ID, moeda, valor, meio permitido e associação ao checkout/aluno via metadata; se metadata não foi propagada, verifica a preferência pela ordem oficial do Mercado Pago. Preferências antigas podem ser verificadas pelo `pref_id` do link salvo. Eventos duplicados não criam pagamentos duplicados; eventos anteriores não revertem estados recentes, e confirmação atrasada não desfaz estorno. Pagamento manual concorrente exige revisão em vez de sobrescrever o recebimento.
+
+A operação **Conciliar pagamento do gateway** continua disponível para a equipe quando houve falha de notificação. Preferências expiram em 24 h, como no fluxo anterior; cobranças expiradas exigem revisão pela recepção/provedor. Não foi implementada renovação automática de preferência nem uma nova política de pagamentos parciais/reembolso parcial. Estorno integral e chargeback são tratados, mantendo histórico. Confirmar reembolso parcial no provedor exige revisão financeira, conforme a política da academia.
+
+Referências: [preferências Checkout Pro](https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/create-payment-preference), [API do Checkout Pro](https://www.mercadopago.com.br/developers/pt/reference/online-payments/checkout-pro-preferences/overview), [notificações assinadas](https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications).
+
+## Migração, arquivos e validação
+
+Após `schema.sql`, `migrations.mjs` aplica SQL versionado em transação, registra `schema_migration` e serializa execução concorrente. A primeira migração adiciona configuração geográfica, auditoria de envios e campos de identificação/ordenação do gateway. Preserva registros anteriores. `database.mjs` disponibiliza execução de múltiplas instruções dentro da mesma transação PostgreSQL; PGlite usa sua API equivalente. Build e Docker incluem os novos módulos e a pasta de migrações.
+
+Arquivos principais: `public/app.js`, `public/features.js`, `public/platform.css`, `public/sw.js`, `account-flows.mjs`, `financial.mjs`, `experience.mjs`, `server.mjs`, `database.mjs`; novos `attendance.mjs`, `mail.mjs`, `migrations.mjs`, `migrations/001_checkin_email_gateway.sql`. Testes direcionados: `tests/improvements.test.mjs` e `tests/improvements.browser.mjs`. O teste do gateway existente foi atualizado para incluir vínculo realista de checkout/aluno.
+
+Verificação local concluída: `npm.cmd run lint`, `npm.cmd test`, `npm.cmd run test:browser`, `npm.cmd run test:real` e `npm.cmd run build`. Bancos de teste são isolados; capturas ficam em `test-results/`. A suíte de API passou com 28 testes; os oito scripts de navegador passaram, incluindo quatro perfis, menu Mais, comprovantes, link financeiro, check-in e responsividade. O teste de persistência confirmou os cadastros após reiniciar o servidor. O pacote `dist/` também foi inicializado com banco isolado para confirmar inclusão dos módulos e aplicação da migração, sem coordenadas predefinidas. A validação local usou Node.js 24.16.0; a versão declarada para produção permanece Node.js 22.
+
+Não havia `.env` com credenciais reais de Resend/Mercado Pago disponível neste ambiente. Os testes usam provedores simulados, sem envio externo ou transação financeira. Não foi feita implantação nem migração do banco real da academia. Antes de produção, validar remetente/domínio, entrega real de convite/recuperação e login pelo link, preferência e meios habilitados na conta, PIX/cartão em sandbox, webhook real/repetido e recuperação por conciliação. Também testar GPS em celulares reais no endereço da academia, precisão em ambiente interno e HTTPS válido. O runner aplica a migração ao iniciar a versão atualizada; siga o procedimento de backup existente antes de atualizar produção.

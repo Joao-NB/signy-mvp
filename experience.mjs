@@ -1,3 +1,4 @@
+import {appOrigin} from './mail.mjs';
 import {requirePermission} from './permissions.mjs';
 export function experienceModule(app,db){
  const q=async(sql,params=[]) => (await db.query(sql,params)).rows;
@@ -8,8 +9,8 @@ export function experienceModule(app,db){
    (SELECT row_to_json(a) FROM (SELECT nome,email,telefone FROM aluno WHERE id_aluno=$1) a) AS aluno,
    COALESCE((SELECT json_agg(f) FROM (SELECT ft.id_ficha,ft.descricao,p.nome AS professor,COALESCE((SELECT json_agg(e) FROM (SELECT fe.ordem,fe.series,fe.repeticoes,fe.carga_sugerida,fe.observacao,ex.nome,ex.grupo_muscular,ex.descricao,ex.video_url FROM ficha_exercicio fe JOIN exercicio ex USING(id_exercicio) WHERE fe.id_ficha=ft.id_ficha ORDER BY fe.ordem) e),'[]') AS exercicios FROM ficha_treino ft JOIN professor p USING(id_professor) WHERE ft.id_aluno=$1 AND ft.ativa ORDER BY ft.id_ficha DESC) f),'[]') AS fichas,
    COALESCE((SELECT json_agg(p) FROM (SELECT data_presenca,hora_entrada,saida_em FROM presenca WHERE id_aluno=$1 ORDER BY data_presenca DESC LIMIT 90) p),'[]') AS presencas,
-   COALESCE((SELECT json_agg(m) FROM (SELECT ms.id_mensalidade,ms.competencia,ms.valor,ms.vencimento,CASE WHEN ms.situacao='pendente' AND ms.vencimento<CURRENT_DATE THEN 'atraso' ELSE ms.situacao END AS status FROM mensalidade ms JOIN matricula mt USING(id_matricula) WHERE mt.id_aluno=$1 ORDER BY ms.vencimento DESC LIMIT 36) m),'[]') AS mensalidades,
-   TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje`,[id]);res.json(result);
+   COALESCE((SELECT json_agg(m) FROM (SELECT ms.id_mensalidade,ms.competencia,ms.valor,ms.vencimento,COALESCE((SELECT situacao FROM pagamento pg WHERE pg.id_mensalidade=ms.id_mensalidade AND pg.provedor='mercadopago' ORDER BY pg.id_pagamento DESC LIMIT 1),CASE WHEN EXISTS(SELECT 1 FROM checkout c WHERE c.id_mensalidade=ms.id_mensalidade AND c.url IS NOT NULL AND c.expira>NOW()) THEN 'pendente' END) AS estado_gateway,CASE WHEN ms.situacao='pendente' AND ms.vencimento<CURRENT_DATE THEN 'atraso' ELSE ms.situacao END AS status FROM mensalidade ms JOIN matricula mt USING(id_matricula) WHERE mt.id_aluno=$1 ORDER BY ms.vencimento DESC LIMIT 36) m),'[]') AS mensalidades,
+   TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje`,[id]);res.json({...result,gateway:Boolean(process.env.MP_ACCESS_TOKEN&&process.env.MP_WEBHOOK_SECRET&&appOrigin()?.startsWith('https://'))});
  });
  app.get('/api/reports',requirePermission('reports'),async(req,res)=>{
   const from=String(req.query.from||''),to=String(req.query.to||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||from>to)throw Error('Informe um período válido.');

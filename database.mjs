@@ -10,7 +10,7 @@ export function postgresAdapter(pool) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        const result = await operation({ query: (sql, params = []) => client.query(sql, params) });
+        const result = await operation({ query: (sql, params = []) => client.query(sql, params), exec: sql => client.query(sql) });
         await client.query('COMMIT');
         return result;
       } catch (error) {
