@@ -10,7 +10,12 @@ export function accountFlows(db){
  async function tokenFor(id,finalidade){const token=randomBytes(32).toString('hex');await db.transaction(async tx=>{await tx.query('SELECT id FROM usuario WHERE id=$1 FOR UPDATE',[id]);await tx.query('DELETE FROM token_acesso WHERE id_usuario=$1 AND finalidade=$2',[id,finalidade]);await tx.query("INSERT INTO token_acesso VALUES($1,$2,$3,NOW()+($4::int * INTERVAL '1 minute'),NULL)",[hash(token),id,finalidade,finalidade==='convite'?1440:30]);});return token;}
  async function deliver(email,token,finalidade,login=''){
   const url=appOrigin()?new URL('/#'+finalidade+'='+token,appOrigin()).href:null;
-  const result=await mail.send({to:email,purpose:finalidade,key:hash(token),subject:finalidade==='convite'?'Seu convite para o Signy':'Recuperar acesso ao Signy',text:`Usuário: ${login}\nAbra ${url} para definir sua senha. O link é temporário e só pode ser usado uma vez.`});
+  const isConvite=finalidade==='convite';
+  const subject=isConvite?'Bem-vindo ao Signy · Ativação do seu acesso':'Recuperação de acesso ao Signy';
+  const text=isConvite
+   ?`Olá!\n\nVocê recebeu acesso ao portal do aluno no Signy.\n\nPara ativar sua conta e cadastrar sua senha de acesso, abra o link seguro abaixo:\n${url}\n\nApós definir sua senha, você poderá acessar o portal informando seu e-mail (${email}) ou seu usuário (${login}).\n\nOrientações de acesso:\n1. Acesse o link acima em até 24 horas (uso único e seguro).\n2. Cadastre uma senha pessoal de no mínimo 10 caracteres.\n3. Faça login no sistema e consulte seus treinos, frequência e mensalidades.\n\nSe você não solicitou este acesso, desconsidere esta mensagem.`
+   :`Olá!\n\nRecebemos uma solicitação para redefinir a sua senha no Signy.\n\nPara cadastrar uma nova senha, abra o link seguro abaixo:\n${url}\n\nIdentificação da sua conta: ${email} ou ${login}\n\nEste link é válido por 30 minutos e só pode ser usado uma vez. Se não foi você quem solicitou, sua conta permanece protegida.`;
+  const result=await mail.send({to:email,purpose:finalidade,key:hash(token),subject,text});
   return result.enviado?result:{...result,token,url};
  }
  async function inviteStudent(student){

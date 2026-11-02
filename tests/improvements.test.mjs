@@ -162,6 +162,12 @@ test('convite reenviado invalida o anterior, usa e-mail atual e respeita víncul
  const next=(await req('/students/'+pending.id_aluno+'/invite','POST',{},reception)).body;
  assert.equal((await req('/access/complete','POST',{token:next.token,senha:'ConviteAluno123!'})).status,200);
  assert.equal((await req('/login','POST',{login:next.login,senha:'ConviteAluno123!'})).body.id_aluno,pending.id_aluno);
+ assert.equal((await req('/login','POST',{login:'novo-convite@example.test',senha:'ConviteAluno123!'})).body.id_aluno,pending.id_aluno);
+ const studentView=(await req('/student','GET',null,studentCookie)).body;
+ assert.ok(Array.isArray(studentView.mensalidades));
+ if(studentView.mensalidades.length>=2){
+  assert.ok(studentView.mensalidades[0].vencimento<=studentView.mensalidades[1].vencimento);
+ }
  assert.equal((await req('/users/'+account.id+'/approve','POST',{},admin)).status,404);
  const conflict=(await req('/aluno','POST',{nome:'Aluno e-mail ocupado',cpf:'71727374788',data_nascimento:'1995-01-01',email:'ocupado@example.test'},reception)).body;
  await db.query('UPDATE usuario SET email=$1 WHERE login=$2',['equipe-ocupada@example.test','admin']);
