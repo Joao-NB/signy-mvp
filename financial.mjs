@@ -110,7 +110,7 @@ export function financialModule(db){
    const [result]=await q(`WITH bills AS (SELECT m.*,COALESCE((SELECT situacao FROM pagamento pg WHERE pg.id_mensalidade=m.id_mensalidade AND pg.provedor='mercadopago' ORDER BY pg.id_pagamento DESC LIMIT 1),CASE WHEN EXISTS(SELECT 1 FROM checkout c WHERE c.id_mensalidade=m.id_mensalidade AND c.url IS NOT NULL AND c.expira>NOW()) THEN 'pendente' END) AS estado_gateway,a.nome,a.id_aluno,TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje,CASE WHEN m.situacao='pendente' AND m.vencimento<CURRENT_DATE THEN 'atraso' ELSE m.situacao END AS status FROM mensalidade m JOIN matricula mt USING(id_matricula) JOIN aluno a USING(id_aluno)), filtered AS (SELECT * FROM bills WHERE nome ILIKE $1 AND ($2='' OR status=$2)) SELECT
     (SELECT count(*)::int FROM filtered) AS total,
     (SELECT count(*)::int FROM bills) AS total_base,
-    COALESCE((SELECT json_agg(r) FROM (SELECT * FROM filtered ORDER BY vencimento DESC,id_mensalidade DESC LIMIT 30 OFFSET $3) r),'[]') AS rows,
+    COALESCE((SELECT json_agg(r) FROM (SELECT * FROM filtered ORDER BY vencimento ASC,id_mensalidade ASC LIMIT 30 OFFSET $3) r),'[]') AS rows,
     (SELECT COALESCE(SUM(valor),0) FROM bills WHERE situacao='pago' AND date_trunc('month',pago_em)=date_trunc('month',CURRENT_DATE)) AS recebido_mes,
     (SELECT COALESCE(SUM(valor),0) FROM bills WHERE status='atraso') AS em_atraso,
     (SELECT COALESCE(SUM(valor),0) FROM bills WHERE situacao='pendente') AS pendente,
