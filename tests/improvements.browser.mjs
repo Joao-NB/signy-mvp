@@ -17,13 +17,11 @@ try{
  assert.equal(await page.locator('.history-disclosure').getAttribute('open'),null);await page.screenshot({path:'test-results/finance-empty.png',fullPage:true});
  const today=(await api('/overview')).hoje,a=await api('/aluno',{nome:'Teste completo',cpf:'41424344455',data_nascimento:'1995-01-01',email:'browser@example.test'}),p=await api('/professor',{nome:'Professor teste',cpf:'51525354566'}),plan=await api('/plano',{nome:'Plano browser',valor_mensal:100,duracao_meses:5});
  await api('/matricula',{id_aluno:a.id_aluno,id_plano:plan.id_plano,data_inicio:today});await api('/users',{nome:'Recepção teste',login:'recepcao',senha:'Recepcao123!',perfil:'recepcionista'});await api('/users',{nome:'Professor teste',login:'professor',senha:'Professor123!',perfil:'professor',id_professor:p.id_professor});
- await page.locator('[data-nav=aluno]').click();await page.locator('.row-more summary').first().waitFor();
+ await page.locator('[data-nav=aluno]').click();await page.locator('[data-lifecycle=aluno]').first().waitFor();
  for(const width of [1440,390,320]){
-  await page.setViewportSize({width,height:900});const trigger=page.locator('.row-more summary').first();await trigger.click();
-  const menu=page.locator('.row-more[open]>div');assert.equal(await menu.isVisible(),true);const box=await menu.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width&&box.y+box.height<=900);
-  await page.screenshot({path:`test-results/more-${width}.png`,fullPage:true});await page.keyboard.press('Escape');assert.equal(await page.locator('.row-more[open]').count(),0);assert.equal(await trigger.evaluate(el=>el===document.activeElement),true);
-  await trigger.press('ArrowDown');assert.equal(await menu.locator('button').evaluate(el=>el===document.activeElement),true);await page.keyboard.press('Tab');assert.equal(await page.locator('.row-more[open]').count(),0);
-  await trigger.click();await page.getByRole('heading',{name:'Alunos',exact:true}).click();assert.equal(await page.locator('.row-more[open]').count(),0);
+  await page.setViewportSize({width,height:900});assert.equal(await page.locator('.row-more').count(),0);
+  assert.equal(await page.locator('[data-lifecycle=aluno]').first().isVisible(),true);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  }
  await page.setViewportSize({width:1440,height:1000});await page.locator('[data-nav=finance]').click();await page.locator('[data-receive]').first().click();await page.locator('#payment-form').waitFor();
  const method=page.locator('#payment-form [name=meio]'),reference=page.locator('#payment-form [name=comprovante]');await reference.fill('Referência preservada');
@@ -51,5 +49,5 @@ try{
  await logout();await login(a.convite.login,'AlunoBrowser123!');await page.getByRole('heading',{name:'Minhas mensalidades'}).waitFor();
  await logout();await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/#financeiro');await login('admin','BrowserMelhorias123!');await page.getByRole('heading',{name:'Financeiro',exact:true}).waitFor();
  await page.locator('[data-nav=reports]').click();await page.getByRole('heading',{name:'Relatórios e indicadores'}).waitFor();
- assert.deepEqual(errors,[]);console.log('Melhorias: 4 perfis, menus Mais, estado vazio/erro, comprovante contextual, dinheiro sem referência e check-in mobile OK.');
+ assert.deepEqual(errors,[]);console.log('Melhorias: 4 perfis, ações diretas, estado vazio/erro, comprovante contextual, dinheiro sem referência e check-in mobile OK.');
 }finally{await browser.close();await new Promise(r=>server.close(r));await db.close();}

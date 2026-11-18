@@ -94,12 +94,10 @@ try {
   await save(await startForm('exercicio', { nome: 'Exercício Temporário', grupo_muscular: 'Braços' }));
 
   await nav('plano');
-  await page.locator('.row-more summary').click();
-  await page.locator('[data-toggle]').click();
+  await page.locator('[data-lifecycle=plano]').click();
   await confirm();
   assert.match(await page.locator('tbody').innerText(), /Inativo/);
-  await page.locator('.row-more summary').click();
-  await page.locator('[data-toggle]').click();
+  await page.locator('[data-lifecycle=plano]').click();
   await confirm();
   assert.match(await page.locator('tbody').innerText(), /Ativo/);
 
@@ -165,18 +163,18 @@ try {
 
   for (const [section, item] of [['aluno', 'Aluno Temporário'], ['professor', 'Professor Temporário'], ['exercicio', 'Exercício Temporário']]) {
     await nav(section);
-    await row(item).locator('.row-more summary').click();
-    await row(item).locator(`[data-delete="${section}"]`).click();
+    await row(item).locator(`[data-lifecycle="${section}"]`).click();
     await confirm();
-    assert.equal(await row(item).count(), 0);
+    assert.equal(await row(item).count(), 1);
+    assert.match(await row(item).innerText(),/Desativado|Reativar/);
   }
 
   await nav('aluno');
-  await row('Ana Principal').locator('.row-more summary').click();
-  await row('Ana Principal').locator('[data-delete=aluno]').click();
-  await page.locator('#confirm').click();
-  await page.getByText(/existem registros vinculados/).waitFor();
-  await closeModal();
+  await row('Ana Principal').locator('[data-lifecycle=aluno]').click();
+  await confirm();
+  await row('Ana Principal').locator('[data-reenroll]').click();
+  await page.locator('[name=id_plano]').selectOption('1');
+  await save(page.locator('#edit-form [type=submit]'));
 
   await nav('matricula');
   await page.locator('[data-cancel]').click();

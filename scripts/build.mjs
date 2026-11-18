@@ -1,5 +1,5 @@
 import {mkdir,copyFile,cp,readFile} from 'node:fs/promises';
-const files=['server.mjs','database.mjs','schema.sql','migrations.mjs','attendance.mjs','mail.mjs','permissions.mjs','telemetry.mjs','account-flows.mjs','financial.mjs','experience.mjs','package-lock.json'];
+const files=['server.mjs','database.mjs','schema.sql','migrations.mjs','attendance.mjs','lifecycle.mjs','mail.mjs','permissions.mjs','telemetry.mjs','account-flows.mjs','financial.mjs','experience.mjs','package-lock.json'];
 await mkdir('dist',{recursive:true});
 for(const file of files)await copyFile(file,`dist/${file}`);
 await cp('public','dist/public',{recursive:true});

@@ -111,7 +111,9 @@ export function financialModule(db){
     (SELECT count(*)::int FROM filtered) AS total,
     (SELECT count(*)::int FROM bills) AS total_base,
     COALESCE((SELECT json_agg(r) FROM (SELECT * FROM filtered ORDER BY vencimento ASC,id_mensalidade ASC LIMIT 30 OFFSET $3) r),'[]') AS rows,
-    (SELECT COALESCE(SUM(valor),0) FROM bills WHERE situacao='pago' AND date_trunc('month',pago_em)=date_trunc('month',CURRENT_DATE)) AS recebido_mes,
+    (SELECT COALESCE(SUM(valor),0) FROM pagamento WHERE situacao='confirmado' AND confirmado_em>=date_trunc('month',CURRENT_DATE) AND confirmado_em<date_trunc('month',CURRENT_DATE)+INTERVAL '1 month') AS recebido_mes,
+    (SELECT COALESCE(SUM(valor),0) FROM bills WHERE situacao='pendente' AND vencimento>=CURRENT_DATE) AS a_vencer,
+    (SELECT json_agg(t) FROM (SELECT faixa,COUNT(b.id_mensalidade)::int AS quantidade,COALESCE(SUM(b.valor),0) AS valor FROM (VALUES (1,7,'1 a 7 dias'),(8,30,'8 a 30 dias'),(31,60,'31 a 60 dias'),(61,2147483647,'Mais de 60 dias')) AS f(inicio,fim,faixa) LEFT JOIN bills b ON b.status='atraso' AND CURRENT_DATE-b.vencimento BETWEEN f.inicio AND f.fim GROUP BY f.inicio,faixa ORDER BY f.inicio) t) AS atrasos,
     (SELECT COALESCE(SUM(valor),0) FROM bills WHERE status='atraso') AS em_atraso,
     (SELECT COALESCE(SUM(valor),0) FROM bills WHERE situacao='pendente') AS pendente,
     TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje`,params);res.json({...result,page,limit,gateway:ready()});

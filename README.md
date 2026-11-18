@@ -80,3 +80,5 @@ O build gera `dist/` com os arquivos necessários à produção. GitHub Actions 
 O esquema base continua em `schema.sql`; novas migrações ficam em `migrations/`, aplicadas em transação e registradas em `schema_migration`. Mantenha backup antes de atualizar produção. Não envie `.env`, `data/` ou chaves ao repositório. Para banco local, pare o servidor e copie `data/`; para PostgreSQL externo, use o backup do provedor.
 
 Veja [correções funcionais, testes e limites de validação](docs/CORRECOES-FUNCIONAIS.md) para detalhes dos arquivos alterados, configurações e homologação pendente de Resend, Mercado Pago e GPS real.
+
+As ações de [cadastro, rematrícula, calendários e Financeiro/BI](docs/CADASTROS-E-FINANCEIRO.md) preservam históricos e usam componentes compartilhados. A verificação pontual está em `npm run test:catalog`.
