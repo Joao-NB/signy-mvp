@@ -45,13 +45,26 @@ const accountData=body=>{
  if(Buffer.byteLength(senha)<10||Buffer.byteLength(senha)>72)throw Error('Use uma senha de 10 a 72 bytes.');
  return {nome,login,senha};
 };
-const issueSession=async(res,user,secure)=>{const token=randomBytes(32).toString('hex');await q("WITH cleanup AS (DELETE FROM sessao WHERE expira < NOW()) INSERT INTO sessao VALUES($1,$2,NOW()+INTERVAL '8 hours')",[createHash('sha256').update(token).digest('hex'),user.id]);res.set('Set-Cookie',`signy=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${secure?'; Secure':''}`).json(publicUser(user));};
+// Only a verified staff identity can request the same overview as the protected endpoint.
+async function entryOverview(user,initial){
+ if(initial!=='overview'||!permissions[user?.perfil]?.read.includes('aluno'))return null;
+ try{return await readOverview();}catch{return null;} // The existing retry flow remains available if data loading fails.
+}
+const issueSession=async(res,user,secure,initial)=>{
+ const token=randomBytes(32).toString('hex');
+ const [,overview]=await Promise.all([
+  q("WITH cleanup AS (DELETE FROM sessao WHERE expira < NOW()) INSERT INTO sessao VALUES($1,$2,NOW()+INTERVAL '8 hours')",[createHash('sha256').update(token).digest('hex'),user.id]),
+  entryOverview(user,initial),
+ ]);
+ res.set('Set-Cookie',`signy=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${secure?'; Secure':''}`).json({...publicUser(user),...(overview?{initial_overview:overview}:{})});
+};
 app.get('/api/setup-status',async(req,res)=>res.json(openAccess?{required:false,open:true}:{required:!(await q('SELECT id FROM usuario LIMIT 1')).length}));
 // Resolve the entry screen in one request; never include password hashes.
 app.get('/api/bootstrap',async(req,res)=>{
  const user=sessions(req)?(await q('SELECT u.* FROM sessao s JOIN usuario u ON u.id=s.id_usuario WHERE token=$1 AND expira>NOW() AND u.aprovado=TRUE',[sessions(req)]))[0]:null;
  const required=!openAccess&&!user&&!(await q('SELECT id FROM usuario LIMIT 1')).length;
- res.json({required,open:openAccess,user:user?publicUser(user):null});
+ const overview=user?await entryOverview(user,req.query.initial):null;
+ res.json({required,open:openAccess,user:user?publicUser(user):null,...(overview?{overview}:{})});
 });
 app.post('/api/setup',async(req,res)=>{
  if(openAccess)return res.status(404).json({error:'Configuração inicial desnecessária no acesso livre.'});
@@ -64,14 +77,14 @@ app.post('/api/login',async(req,res)=>{
   const login=String(req.body.login||'visitante').trim().toLowerCase().slice(0,100)||'visitante';
   const user=(await q("INSERT INTO usuario(nome,login,senha_hash,aprovado) VALUES($1,$2,$3,TRUE) ON CONFLICT(login) DO UPDATE SET nome=usuario.nome WHERE usuario.perfil='administrador' RETURNING *",[login,login,openAccessHash]))[0];
   if(!user)return res.status(403).json({error:'Use o acesso protegido para esta conta.'});
-  return issueSession(res,user,req.secure);
+  return issueSession(res,user,req.secure,req.body.initial);
  }
  const key=req.ip, now=Date.now(), attempt=attempts.get(key); if(attempt&&attempt.until>now&&attempt.count>=10)return res.status(429).json({error:'Muitas tentativas. Aguarde 15 minutos.'});
  const identifier=String(req.body.login||'').trim().toLowerCase();
  const user=(await q('SELECT * FROM usuario WHERE login=$1 OR (email IS NOT NULL AND lower(email)=$1) LIMIT 1',[identifier]))[0];
  if(!user||!await bcrypt.compare(String(req.body.senha||''),user.senha_hash)){const a=attempt&&attempt.until>now?attempt:{count:0,until:now+900000};a.count++;attempts.set(key,a);return res.status(401).json({error:'Usuário ou senha incorretos.'});}
  if(!user.aprovado)return res.status(403).json({error:'Sua conta foi criada e aguarda aprovação de um administrador da academia.'});
- attempts.delete(key);await issueSession(res,user,req.secure);
+ attempts.delete(key);await issueSession(res,user,req.secure,req.body.initial);
 });
 app.post('/api/register',(req,res)=>res.status(404).json({error:'Cadastro público indisponível.'}));
 const recoveryAttempts=new Map();
@@ -108,8 +121,7 @@ app.put('/api/account',async(req,res)=>{
  await q('DELETE FROM sessao WHERE id_usuario=$1 AND token<>$2',[updated.id,sessions(req)]);res.json(publicUser(updated));
 });
 async function expire(tx=db){await tx.query("UPDATE matricula SET situacao='vencida' WHERE situacao='ativa' AND data_fim<CURRENT_DATE");}
-app.get('/api/overview',requirePermission('read','aluno'),async(req,res)=>{
- // One database round trip, bounded histories, no exercise catalogue or workout details.
+async function readOverview(){
  const [result]=await q(`SELECT
   TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje,
   (SELECT COUNT(*)::int FROM aluno) AS alunos,
@@ -123,8 +135,9 @@ app.get('/api/overview',requirePermission('read','aluno'),async(req,res)=>{
   COALESCE((SELECT json_agg(w) FROM (SELECT TO_CHAR(d,'YYYY-MM-DD') AS dia, (SELECT COUNT(*)::int FROM presenca WHERE data_presenca=d::date) AS total FROM generate_series(CURRENT_DATE-6,CURRENT_DATE,INTERVAL '1 day') d ORDER BY d) w),'[]') AS semana,
   COALESCE((SELECT json_agg(a) FROM (SELECT id_aluno,nome FROM aluno WHERE EXISTS(SELECT 1 FROM matricula m WHERE m.id_aluno=aluno.id_aluno AND m.situacao='ativa' AND CURRENT_DATE BETWEEN m.data_inicio AND m.data_fim) AND NOT EXISTS(SELECT 1 FROM presenca p WHERE p.id_aluno=aluno.id_aluno AND p.data_presenca=CURRENT_DATE) ORDER BY nome) a),'[]') AS disponiveis,
   COALESCE((SELECT json_agg(a) FROM (SELECT a.id_aluno,a.nome,a.data_cadastro,(SELECT p.nome FROM matricula m JOIN plano p USING(id_plano) WHERE m.id_aluno=a.id_aluno AND m.situacao='ativa' AND CURRENT_DATE BETWEEN m.data_inicio AND m.data_fim LIMIT 1) AS plano FROM aluno a ORDER BY a.id_aluno DESC LIMIT 5) a),'[]') AS recentes`);
- res.json(result);
-});
+ return result;
+}
+app.get('/api/overview',requirePermission('read','aluno'),async(req,res)=>res.json(await readOverview()));
 app.get('/api/data',requirePermission('read','aluno'),async(req,res)=>{await expire();const select=Object.entries(models).map(([table,[pk]])=>`COALESCE((SELECT json_agg(r) FROM (SELECT * FROM ${table} ORDER BY ${pk} DESC) r),'[]') AS ${table}`);select.push("COALESCE((SELECT json_agg(r) FROM (SELECT * FROM ficha_exercicio ORDER BY ordem,id_ficha_exercicio) r),'[]') AS ficha_exercicio","TO_CHAR(CURRENT_DATE,'YYYY-MM-DD') AS hoje");const [data]=await q('SELECT '+select.join(','));if(req.user.perfil==='professor'){data.aluno=data.aluno.map(a=>({id_aluno:a.id_aluno,nome:a.nome,data_cadastro:a.data_cadastro}));data.professor=data.professor.map(p=>({id_professor:p.id_professor,nome:p.nome,especialidade:p.especialidade,data_admissao:p.data_admissao}));}res.json(data);});
 function clean(table,body){if(table==='plano'&&body.duracao_meses!==undefined&&(!Number.isInteger(Number(body.duracao_meses))||Number(body.duracao_meses)<1||Number(body.duracao_meses)>120))throw Error('A duração do plano deve ser de 1 a 120 meses.');const data={};for(const key of models[table].slice(1)){if(body[key]!==undefined)data[key]=typeof body[key]==='string'?body[key].trim()||null:body[key];}if('cpf'in data)data.cpf=String(data.cpf||'').replace(/\D/g,'');if(data.email){data.email=data.email.toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))throw Error('Informe um e-mail válido.');}for(const key of ['nome','descricao','grupo_muscular'])if(key in data&&data[key]===null&&!(key==='descricao'&&['plano','exercicio'].includes(table)))throw Error('Preencha os campos obrigatórios.');return data;}
 async function insert(tx,table,data){const keys=Object.keys(data);return (await tx.query(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map((_,i)=>'$'+(i+1)).join(',')}) RETURNING *`,Object.values(data))).rows[0];}

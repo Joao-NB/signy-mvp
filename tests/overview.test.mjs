@@ -19,6 +19,7 @@ test('resumo inicial protege a sessão e calcula dados reais sem carregar histó
  const initial=await request('/bootstrap');
  assert.deepEqual(initial.body,{required:false,open:false,user:null});
  assert.equal((await request('/overview')).response.status,401);
+ assert.equal('overview' in (await request('/bootstrap?initial=overview')).body,false);
  const login=await request('/login','POST',{login:'admin',senha:'OverviewTest123!'});
  cookie=login.response.headers.get('set-cookie').split(';')[0];
  const bootstrap=(await request('/bootstrap')).body;
@@ -41,4 +42,27 @@ test('resumo inicial protege a sessão e calcula dados reais sem carregar histó
  assert.equal(expired.ativos,0);assert.equal(expired.vencimentos,0);assert.equal(expired.recentes[0].plano,null);
  await request('/logout','POST');
  assert.equal((await request('/bootstrap')).body.user,null);assert.equal((await request('/overview')).response.status,401);
+});
+
+test('entrada agrupada preserva autenticação, dados atuais e isolamento de alunos',async()=>{
+ const denied=await request('/login','POST',{login:'admin',senha:'Incorreta123!',initial:'overview'});
+ assert.equal(denied.response.status,401);assert.equal('initial_overview' in denied.body,false);
+ const login=await request('/login','POST',{login:'admin',senha:'OverviewTest123!',initial:'overview'});
+ assert.equal(login.response.status,200);cookie=login.response.headers.get('set-cookie').split(';')[0];
+ const current=(await request('/overview')).body;
+ assert.deepEqual(login.body.initial_overview,current);
+ assert.equal('senha_hash' in login.body,false);
+ const resumed=(await request('/bootstrap?initial=overview')).body;
+ assert.deepEqual(resumed.overview,current);
+ assert.equal('overview' in (await request('/bootstrap')).body,false,'Contrato legado preservado.');
+ await db.query("INSERT INTO usuario(nome,login,senha_hash,perfil,aprovado) SELECT 'Aluno teste','aluno-entrada',senha_hash,'aluno',TRUE FROM usuario WHERE login='admin'");
+ const student=await request('/login','POST',{login:'aluno-entrada',senha:'OverviewTest123!',initial:'overview'});
+ assert.equal(student.response.status,200);assert.equal('initial_overview' in student.body,false);
+ cookie=student.response.headers.get('set-cookie').split(';')[0];
+ assert.equal('overview' in (await request('/bootstrap?initial=overview')).body,false);
+ assert.equal((await request('/overview')).response.status,403);
+ await db.query("UPDATE usuario SET aprovado=FALSE WHERE login='aluno-entrada'");
+ const unapproved=await request('/login','POST',{login:'aluno-entrada',senha:'OverviewTest123!',initial:'overview'});
+ assert.equal(unapproved.response.status,403);assert.equal('initial_overview' in unapproved.body,false);
+ assert.equal((await request('/bootstrap?initial=overview')).body.user,null);
 });

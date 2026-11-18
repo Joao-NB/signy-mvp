@@ -54,11 +54,13 @@ O administrador acompanha alunos ativos, matrículas e pessoas distintas, cancel
 
 ## Performance e experiência
 
-O painel inicial usa apenas `/api/overview`. Cadastros completos são carregados sob demanda. `/api/data` reúne os catálogos em uma consulta SQL, além da autorização e atualização de vencimentos. As listagens renderizam até 30 itens por página; os catálogos de seleção permanecem carregados em memória. Financeiro pagina no banco. Para volumes maiores, a próxima evolução é substituir o catálogo integral por endpoints de busca específicos.
+A página de entrada é voltada à gerência, com login na abertura, seção interativa de diferenciais, seções sobrepostas e celular que sobe com a rolagem e apresentação das ferramentas da academia. As animações têm alternativa sem `IntersectionObserver` e respeitam movimento reduzido. Execute `npm.cmd run test:login` para verificar a entrada; veja [identidade da gestão](docs/MANAGEMENT-DESIGN.md) para interface, imagens e compatibilidade.
+
+O painel inicial chega junto da identidade validada em `/api/login` ou `/api/bootstrap?initial=overview`, evitando uma segunda requisição. `/api/overview` continua disponível para atualização e recuperação de falhas. Cadastros completos são carregados sob demanda. O menu lateral permanece montado ao trocar abas, preservando sua posição de rolagem. `/api/data` reúne os catálogos em uma consulta SQL, além da autorização e atualização de vencimentos. As listagens renderizam até 30 itens por página; os catálogos de seleção permanecem carregados em memória. Financeiro pagina no banco. Para volumes maiores, a próxima evolução é substituir o catálogo integral por endpoints de busca específicos.
 
 `Server-Timing` mostra tempo total, tempo de banco e contagem de consultas em cada resposta da API. `PERFORMANCE_LOG=true` registra essas medidas, sem credenciais ou corpos. `npm.cmd run performance` mede os fluxos com banco isolado. A [medição antes/depois](docs/PERFORMANCE.md) distingue resultados locais das condições de Render/Neon.
 
-A identidade usa o lettering angular SIGNY do documento, em SVG, variantes clara/escura, favicon e ícones PWA. Controles de conta e saída permanecem na barra superior direita. Tabelas viram cards no celular; modais, teclado, labels, foco e mensagens seguem componentes compartilhados. A saída limpa a interface imediatamente e só libera novo login após invalidar a sessão no servidor.
+A identidade atual usa a marca Signy em SVG, verde profundo e lima e tipografia local Plus Jakarta Sans na área autenticada, com cabeçalhos, cartões, tabelas e modais consistentes com a apresentação. Favicon e ícones PWA permanecem disponíveis. Controles de conta e saída permanecem na barra superior direita. Tabelas viram cards no celular; modais, teclado, labels, foco e mensagens seguem componentes compartilhados. A saída limpa a interface imediatamente e só libera novo login após invalidar a sessão no servidor.
 
 ## Verificar e publicar
 
@@ -66,6 +68,7 @@ A identidade usa o lettering angular SIGNY do documento, em SVG, variantes clara
 npm.cmd run lint
 npm.cmd test
 npm.cmd run test:browser
+npm.cmd run test:login
 npm.cmd run test:real
 npm.cmd run build
 ```

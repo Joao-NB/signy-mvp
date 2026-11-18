@@ -24,10 +24,32 @@ try{
  await page.getByRole('button',{name:'Entrar na academia'}).click();
  await page.getByRole('heading',{name:'A academia, hoje.'}).waitFor();
  assert.deepEqual(requests.filter(path=>path==='/api/data'),[],'A primeira tela não deve buscar todos os cadastros');
- assert.equal(requests.filter(path=>path==='/api/overview').length,1);
+ assert.equal(requests.filter(path=>path==='/api/overview').length,0);
  await page.locator('.nav [data-nav=aluno]').click();
  await page.getByRole('heading',{name:'Alunos'}).waitFor();
  assert.equal(requests.filter(path=>path==='/api/data').length,1,'Detalhes carregam ao abrir a área');
+ // A low viewport makes the lower navigation items genuinely require scrolling.
+ await page.setViewportSize({width:1365,height:628});
+ const navigation=page.locator('.sidebar .nav');
+ await navigation.evaluate(el=>{window.signyNavigation=el;el.scrollTop=el.scrollHeight;});
+ const menuPosition=await navigation.evaluate(el=>el.scrollTop);
+ assert.ok(menuPosition>50,'O teste precisa de um menu com rolagem real.');
+ for(const tab of ['reports','finance','plano']){
+  await page.locator('.nav [data-nav='+tab+']').click();
+  await page.locator('.content .load-state[role=status]').waitFor({state:'detached'});
+  assert.equal(await navigation.evaluate(el=>el===window.signyNavigation),true,'O menu deve permanecer montado.');
+  assert.ok(Math.abs(await navigation.evaluate(el=>el.scrollTop)-menuPosition)<2,'O menu deve manter a posição após abrir '+tab);
+  assert.equal(await page.locator('.nav [data-nav='+tab+']').getAttribute('aria-current'),'page');
+ }
+ await page.locator('.nav [data-nav=aluno]').click();
+ await page.getByRole('heading',{name:'Alunos'}).waitFor();
+ assert.equal(requests.filter(path=>path==='/api/data').length,1,'Trocar abas reutiliza os cadastros já carregados.');
+ const beforeReload=requests.length;
+ await page.reload();
+ await page.getByRole('heading',{name:'A academia, hoje.'}).waitFor();
+ assert.deepEqual(requests.slice(beforeReload),['/api/bootstrap'],'Retomar sessão abre o painel em uma requisição.');
+ await page.locator('.nav [data-nav=aluno]').click();
+ await page.getByRole('heading',{name:'Alunos'}).waitFor();
  await page.locator('[data-new=aluno]').click();
  await page.locator('#edit-form').waitFor();
  assert.equal(await page.locator('.form-disclosure').evaluate(el=>el.open),false);

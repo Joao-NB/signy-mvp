@@ -17,3 +17,12 @@ Mudanças verificáveis: a leitura de `/api/data` passou de uma consulta para ca
 O cabeçalho `Server-Timing` retorna `app`, `db` e `queries` por resposta da API. Para diagnosticar produção, habilite `PERFORMANCE_LOG=true`, compare esses dados com a duração observada na aba Network e meça separadamente primeira requisição após inatividade e requisições aquecidas. Tempo alto antes da aplicação responder pode vir de retomada da infraestrutura; SQL alto exige análise de consultas/índices. Não atribua uma causa sem coletar evidência.
 
 Reproduzir: `npm.cmd run performance`. O resultado fica em `test-results/performance-atual.json`. Os testes de navegador também verificam que a primeira visualização não baixa os catálogos completos e que o logout limpa o conteúdo antes de concluir a requisição. Nenhum benchmark foi executado na produção.
+
+
+## Entrada e troca de abas — 18/11/2026
+
+O teste de navegador `tests/entry.browser.mjs` confirma que, após enviar as credenciais, a home não faz uma chamada adicional a `/api/overview` ou `/api/data`. O resumo é retornado na própria resposta de autenticação, apenas para contas autorizadas. Recarregar com sessão válida usa somente `/api/bootstrap?initial=overview` para identidade e resumo. São uma requisição em vez de duas em cada entrada; esta verificação mede a quantidade de chamadas, não um ganho percentual de tempo no Render/Neon.
+
+A consulta de resumo é a mesma do endpoint protegido, executada após validar as credenciais/permissões. O resumo e a criação da sessão podem ser preparados em paralelo; senhas continuam usando bcrypt com custo 12, cookies HttpOnly e autorização por perfil. Falha no resumo mantém o fluxo normal de atualização e sua mensagem de recuperação. Não foi introduzido cache de API autenticada.
+
+A troca de abas conserva a estrutura do menu e da barra superior e atualiza apenas conteúdo, título e seleção. Isso evita reconstruções desnecessárias e mantém a rolagem do menu. O catálogo completo continua sob demanda e é reutilizado entre abas; os testes verificam uma única carga antes de recarregar a aplicação. Atualizações após gravações continuam buscando os dados atuais.
