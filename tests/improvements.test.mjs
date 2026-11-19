@@ -179,7 +179,8 @@ test('convite reenviado invalida o anterior, usa e-mail atual e respeita víncul
 });
 test('migração versionada reaplica sem apagar dados',async()=>{
  // A conexão instrumentada expõe só query; usa uma conexão nova para validar o runner real.
- const {PGlite}=await import('@electric-sql/pglite'),{readFile}=await import('node:fs/promises');
+ const {PGlite}=await import('@electric-sql/pglite'),{readFile,readdir}=await import('node:fs/promises');
  const isolated=new PGlite('memory://'),root=fileURLToPath(new URL('../',import.meta.url));
- try{await isolated.exec(await readFile(new URL('../schema.sql',import.meta.url),'utf8'));await migrate(isolated,root);await isolated.query("INSERT INTO configuracao_academia(latitude,longitude,raio_metros,precisao_maxima,abertura,fechamento) VALUES(0,0,125,50,'06:00','22:00')");await migrate(isolated,root);assert.equal((await isolated.query('SELECT count(*)::int AS n FROM schema_migration')).rows[0].n,1);assert.equal((await isolated.query('SELECT raio_metros FROM configuracao_academia')).rows[0].raio_metros,125);}finally{await isolated.close();}
+ const expectedCount=(await readdir(new URL('../migrations',import.meta.url))).filter(f=>f.endsWith('.sql')).length;
+ try{await isolated.exec(await readFile(new URL('../schema.sql',import.meta.url),'utf8'));await migrate(isolated,root);await isolated.query("INSERT INTO configuracao_academia(latitude,longitude,raio_metros,precisao_maxima,abertura,fechamento) VALUES(0,0,125,50,'06:00','22:00')");await migrate(isolated,root);assert.equal((await isolated.query('SELECT count(*)::int AS n FROM schema_migration')).rows[0].n,expectedCount);assert.equal((await isolated.query('SELECT raio_metros FROM configuracao_academia')).rows[0].raio_metros,125);}finally{await isolated.close();}
 });
